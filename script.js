@@ -1,481 +1,276 @@
+/* =========================================================
+   VOID//RUSH 2.0
+   Complete game engine
+   Monochrome edition
+========================================================= */
 
 "use strict";
 
-/* =========================================
-   VOID//RUSH 2.0 — GAME ENGINE
-========================================= */
+/* =========================================================
+   DOM HELPERS
+========================================================= */
 
-const canvas = document.getElementById("gameCanvas");
+const $ = (id) => document.getElementById(id);
+
+const getElement = (...ids) => {
+  for (const id of ids) {
+    const element = $(id);
+    if (element) return element;
+  }
+  return null;
+};
+
+const canvas = getElement("gameCanvas", "arena", "gameCanvas2") ||
+  document.querySelector("canvas");
+
+if (!canvas) {
+  throw new Error("VOID//RUSH: Could not find the game canvas.");
+}
+
 const ctx = canvas.getContext("2d");
 
-const $ = id => document.getElementById(id);
-
 const ui = {
-  score: $("score"),
-  best: $("best"),
-  sector: $("sector"),
-  kills: $("kills"),
-  combo: $("combo"),
-  health: $("healthBar"),
-  shield: $("shieldBar"),
-  dash: $("dashBar"),
-  healthText: $("healthText"),
-  shieldText: $("shieldText"),
-  dashText: $("dashText"),
-  position: $("position"),
-  fps: $("fps"),
-  arenaState: $("arenaState"),
-  log: $("eventLog")
+  score: getElement("score"),
+  best: getElement("best"),
+  sector: getElement("sector"),
+  kills: getElement("kills"),
+  combo: getElement("combo"),
+  arenaState: getElement("arenaState"),
+
+  startBtn: getElement("startBtn"),
+  retryBtn: getElement("retryBtn"),
+  pauseBtn: getElement("pauseBtn"),
+  resumeBtn: getElement("resumeBtn"),
+
+  menu: getElement("menuOverlay", "menuScreen"),
+  gameOver: getElement("gameOverOverlay", "gameOverScreen"),
+  pause: getElement("pauseOverlay", "pauseScreen"),
+  upgrade: getElement("upgradeOverlay", "upgradeScreen"),
+
+  hull: getElement("hullBar", "healthBar"),
+  shield: getElement("shieldBar"),
+  dash: getElement("dashBar"),
+
+  hullText: getElement("hullText"),
+  shieldText: getElement("shieldText"),
+  dashText: getElement("dashText"),
+
+  finalScore: getElement("finalScore"),
+  finalKills: getElement("finalKills"),
+  finalSector: getElement("finalSector"),
+
+  eventLog: getElement("eventLog")
 };
+
+/* =========================================================
+   CANVAS SETUP
+========================================================= */
 
 let W = 0;
 let H = 0;
+let DPR = 1;
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+
+  W = Math.max(320, rect.width);
+  H = Math.max(320, rect.height);
+
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+/* =========================================================
+   GAME STATE
+========================================================= */
+
 let running = false;
 let paused = false;
-let upgrading = false;
 let gameOver = false;
-let lastTime = 0;
-let frameCount = 0;
-let fpsTimer = 0;
-let fps = 60;
+let upgrading = false;
 
 let score = 0;
 let best = Number(localStorage.getItem("voidrush_best") || 0);
 let kills = 0;
 let sector = 1;
-let sectorProgress = 0;
-let combo = 1;
+let combo = 0;
 let comboTimer = 0;
+
 let elapsed = 0;
+let sectorProgress = 0;
 let spawnTimer = 0;
-let pickupTimer = 0;
-let damageTimer = 0;
-let regenTimer = 0;
-let shake = 0;
+let shardTimer = 0;
+let lastTime = 0;
+let screenShake = 0;
 
-ui.best.textContent = formatScore(best);
-
-const keys = {};
-const touch = { up: false, down: false, left: false, right: false };
-
-let player;
 let enemies = [];
 let shards = [];
-let pickups = [];
 let particles = [];
-let stars = [];
+let pickups = [];
 let floatingTexts = [];
-let upgradesOwned = [];
 
-const random = (min, max) =>
-  Math.random() * (max - min) + min;
+let keys = {};
+let touchDirection = { x: 0, y: 0 };
 
-const clamp = (v, min, max) =>
-  Math.max(min, Math.min(max, v));
+let player;
+let selectedUpgrade = null;
 
-const formatScore = n =>
-  Math.floor(n).toString().padStart(6, "0");
-
-function resize() {
-  const rect = canvas.getBoundingClientRect();
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-  W = rect.width;
-  H = rect.height;
-
-  canvas.width = Math.round(W * dpr);
-  canvas.height = Math.round(H * dpr);
-
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  stars = Array.from({ length: 75 }, () => ({
-    x: random(0, W),
-    y: random(0, H),
-    size: random(.5, 2),
-    speed: random(8, 35)
-  }));
-
-  if (player) {
-    player.x = clamp(player.x, 20, W - 20);
-    player.y = clamp(player.y, 20, H - 20);
-  }
-}
-
-window.addEventListener("resize", resize);
-resize();
+/* =========================================================
+   PLAYER
+========================================================= */
 
 function createPlayer() {
   return {
     x: W / 2,
     y: H / 2,
-    radius: 11,
-    speed: 235,
-    health: 100,
-    maxHealth: 100,
-    shield: 100,
-    maxShield: 100,
+
+    radius: 12,
+
+    vx: 0,
+    vy: 0,
+
+    speed: 250,
+
+    hull: 100,
+    maxHull: 100,
+
+    shield: 50,
+    maxShield: 50,
+
     dash: 100,
-    dashPower: 100,
+    maxDash: 100,
+
     dashCooldown: 0,
     dashDuration: 0,
-    invulnerable: 0,
-    magnet: 0,
+
+    invulnerability: 0,
+
+    regenTimer: 0,
     extraHealing: 0,
-    shieldRegen: 1,
-    speedMultiplier: 1,
-    dashMultiplier: 1,
-    scoreMultiplier: 1,
-    damageReduction: 0,
+
+    magnetRange: 95,
+
+    damage: 1,
+    fireRate: 1,
+
     trail: [],
-    direction: { x: 0, y: -1 }
+    upgrades: []
   };
 }
 
-function resetGame() {
-  score = 0;
-  kills = 0;
-  sector = 1;
-  sectorProgress = 0;
-  combo = 1;
-  comboTimer = 0;
-  elapsed = 0;
-  spawnTimer = 0;
-  pickupTimer = 3;
-  damageTimer = 0;
-  regenTimer = 0;
-  shake = 0;
+/* =========================================================
+   GENERAL HELPERS
+========================================================= */
 
-  enemies = [];
-  shards = [];
-  pickups = [];
-  particles = [];
-  floatingTexts = [];
-  upgradesOwned = [];
+const random = (min, max) => Math.random() * (max - min) + min;
 
-  player = createPlayer();
+const clamp = (value, min, max) =>
+  Math.max(min, Math.min(max, value));
 
-  updateHUD();
-  logEvent("Expedition initiated.");
-  logEvent("Pilot systems online.");
+const distance = (a, b) =>
+  Math.hypot(a.x - b.x, a.y - b.y);
 
-  gameOver = false;
-  upgrading = false;
-  paused = false;
-  running = true;
-
-  hideScreens();
-  ui.arenaState.textContent = "FLIGHT ACTIVE";
+function formatScore(value) {
+  return Math.floor(value).toLocaleString();
 }
 
-function hideScreens() {
-  ["startScreen", "pauseScreen", "upgradeScreen", "gameOverScreen"]
-    .forEach(id => $(id).classList.add("hidden"));
+function showOverlay(element) {
+  if (element) element.classList.remove("hidden");
 }
 
-function startGame() {
-  resetGame();
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
-
-function pauseGame() {
-  if (!running || gameOver || upgrading) return;
-
-  paused = !paused;
-
-  $("pauseScreen").classList.toggle("hidden", !paused);
-  ui.arenaState.textContent = paused ? "SUSPENDED" : "FLIGHT ACTIVE";
-
-  if (!paused) {
-    lastTime = performance.now();
-    requestAnimationFrame(loop);
-  }
+function hideOverlay(element) {
+  if (element) element.classList.add("hidden");
 }
 
 function logEvent(message) {
-  const p = document.createElement("p");
-  p.textContent = "> " + message;
-  ui.log.prepend(p);
+  if (!ui.eventLog) return;
 
-  while (ui.log.children.length > 7) {
-    ui.log.lastChild.remove();
+  const entry = document.createElement("div");
+  entry.textContent = message;
+
+  ui.eventLog.prepend(entry);
+
+  while (ui.eventLog.children.length > 5) {
+    ui.eventLog.lastElementChild.remove();
   }
 }
 
-/* =========================================
-   INPUT
-========================================= */
-
-window.addEventListener("keydown", e => {
-  const k = e.key.toLowerCase();
-
-  if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "]
-    .includes(k)) e.preventDefault();
-
-  keys[k] = true;
-
-  if (k === "p" || k === "escape") {
-    if (!gameOver && !upgrading) pauseGame();
-  }
-
-  if (k === " " && !e.repeat) dash();
-});
-
-window.addEventListener("keyup", e => {
-  keys[e.key.toLowerCase()] = false;
-});
-
-document.querySelectorAll("[data-dir]").forEach(btn => {
-  const dir = btn.dataset.dir;
-
-  btn.addEventListener("pointerdown", e => {
-    e.preventDefault();
-    touch[dir] = true;
+function floatingText(x, y, text) {
+  floatingTexts.push({
+    x,
+    y,
+    text,
+    life: 1
   });
-
-  ["pointerup", "pointerleave", "pointercancel"].forEach(event => {
-    btn.addEventListener(event, () => touch[dir] = false);
-  });
-});
-
-$("touchDash").addEventListener("pointerdown", e => {
-  e.preventDefault();
-  dash();
-});
-
-function getMovement() {
-  let x = 0;
-  let y = 0;
-
-  if (keys["a"] || keys["arrowleft"] || touch.left) x--;
-  if (keys["d"] || keys["arrowright"] || touch.right) x++;
-  if (keys["w"] || keys["arrowup"] || touch.up) y--;
-  if (keys["s"] || keys["arrowdown"] || touch.down) y++;
-
-  const length = Math.hypot(x, y);
-
-  if (length > 0) {
-    x /= length;
-    y /= length;
-  }
-
-  return { x, y };
 }
 
-function dash() {
-  if (!running || paused || upgrading || gameOver) return;
-  if (player.dash < 100 || player.dashDuration > 0) return;
+/* =========================================================
+   HUD
+========================================================= */
 
-  const move = getMovement();
+function updateHUD() {
+  if (ui.score) ui.score.textContent = formatScore(score);
+  if (ui.best) ui.best.textContent = formatScore(best);
+  if (ui.sector) ui.sector.textContent = sector;
+  if (ui.kills) ui.kills.textContent = kills;
+  if (ui.combo) ui.combo.textContent = `x${Math.max(1, combo)}`;
 
-  let dx = move.x;
-  let dy = move.y;
+  if (!player) return;
 
-  if (dx === 0 && dy === 0) {
-    dx = player.direction.x;
-    dy = player.direction.y;
+  if (ui.hull) {
+    ui.hull.style.width =
+      `${(player.hull / player.maxHull) * 100}%`;
   }
 
-  player.direction = { x: dx, y: dy };
-  player.dashDuration = .19;
-  player.dash = 0;
-  player.invulnerable = .42;
-
-  burst(player.x, player.y, 18, "#777", 3);
-  floatingText(player.x, player.y - 25, "PHASE DASH", "#555");
-}
-
-/* =========================================
-   MAIN LOOP
-========================================= */
-
-function loop(timestamp) {
-  if (!running || paused || upgrading || gameOver) return;
-
-  let dt = Math.min((timestamp - lastTime) / 1000, .035);
-  lastTime = timestamp;
-
-  frameCount++;
-  fpsTimer += dt;
-
-  if (fpsTimer >= 1) {
-    fps = frameCount;
-    frameCount = 0;
-    fpsTimer = 0;
-    ui.fps.textContent = fps;
+  if (ui.shield) {
+    ui.shield.style.width =
+      `${(player.shield / player.maxShield) * 100}%`;
   }
 
-  update(dt);
-  render();
-
-  requestAnimationFrame(loop);
-}
-
-/* =========================================
-   UPDATE
-========================================= */
-
-function update(dt) {
-  elapsed += dt;
-
-  updatePlayer(dt);
-  updateEnemies(dt);
-  updateShards(dt);
-  updatePickups(dt);
-  updateParticles(dt);
-  updateFloatingTexts(dt);
-  updateStars(dt);
-  updateSpawning(dt);
-  updateCombo(dt);
-  updateSector(dt);
-  updateRecovery(dt);
-  updateHUD();
-}
-
-function updatePlayer(dt) {
-  const move = getMovement();
-
-  if (move.x || move.y) {
-    player.direction = { x: move.x, y: move.y };
+  if (ui.dash) {
+    ui.dash.style.width =
+      `${(player.dash / player.maxDash) * 100}%`;
   }
 
-  const speed = player.speed * player.speedMultiplier;
-
-  if (player.dashDuration > 0) {
-    player.dashDuration -= dt;
-
-    player.x += player.direction.x * 900 * dt;
-    player.y += player.direction.y * 900 * dt;
-
-    if (Math.random() > .4) {
-      burst(player.x, player.y, 1, "#999", 1);
-    }
-  } else {
-    player.x += move.x * speed * dt;
-    player.y += move.y * speed * dt;
+  if (ui.hullText) {
+    ui.hullText.textContent = `${Math.ceil(player.hull)}%`;
   }
 
-  player.x = clamp(player.x, 15, W - 15);
-  player.y = clamp(player.y, 15, H - 15);
-
-  player.dash = Math.min(100,
-    player.dash + 24 * player.dashMultiplier * dt
-  );
-
-  player.invulnerable = Math.max(0, player.invulnerable - dt);
-
-  player.trail.unshift({ x: player.x, y: player.y });
-
-  if (player.trail.length > 8) player.trail.pop();
-}
-
-function updateRecovery(dt) {
-  // Passive hull regeneration after avoiding damage.
-  if (damageTimer > 0) {
-    damageTimer -= dt;
-  } else if (player.health < player.maxHealth) {
-    regenTimer += dt;
-
-    if (regenTimer > 2.5) {
-      player.health = Math.min(
-        player.maxHealth,
-        player.health + .8 * dt
-      );
-    }
+  if (ui.shieldText) {
+    ui.shieldText.textContent = `${Math.ceil(player.shield)}%`;
   }
 
-  // Shield regenerates gradually.
-  player.shield = Math.min(
-    player.maxShield,
-    player.shield + player.shieldRegen * dt
-  );
-}
-
-function updateEnemies(dt) {
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    const e = enemies[i];
-
-    const dx = player.x - e.x;
-    const dy = player.y - e.y;
-    const dist = Math.hypot(dx, dy) || 1;
-
-    let vx = dx / dist;
-    let vy = dy / dist;
-
-    if (e.type === "drifter") {
-      vx += Math.sin(elapsed * 3 + e.phase) * .7;
-      vy += Math.cos(elapsed * 3 + e.phase) * .7;
-
-      const len = Math.hypot(vx, vy) || 1;
-      vx /= len;
-      vy /= len;
-    }
-
-    if (e.type === "seeker" || e.type === "drifter") {
-      e.x += vx * e.speed * dt;
-      e.y += vy * e.speed * dt;
-    }
-
-    if (e.type === "hunter") {
-      e.x += vx * e.speed * dt;
-      e.y += vy * e.speed * dt;
-    }
-
-    e.rotation += dt * (e.type === "hunter" ? 2 : 1);
-
-    if (dist < player.radius + e.radius) {
-      damagePlayer(e.damage);
-
-      const push = 30 * dt;
-      e.x -= vx * push;
-      e.y -= vy * push;
-    }
-
-    if (e.hp <= 0) {
-      killEnemy(i);
-    }
+  if (ui.dashText) {
+    ui.dashText.textContent = `${Math.ceil(player.dash)}%`;
   }
 }
 
-function updateShards(dt) {
-  for (let i = shards.length - 1; i >= 0; i--) {
-    const s = shards[i];
+/* =========================================================
+   PARTICLES
+========================================================= */
 
-    s.life -= dt;
-    s.rotation += dt * 2;
+function createParticles(x, y, amount = 8, color = "#777") {
+  for (let i = 0; i < amount; i++) {
+    const angle = random(0, Math.PI * 2);
+    const speed = random(35, 180);
 
-    let dx = player.x - s.x;
-    let dy = player.y - s.y;
-    let dist = Math.hypot(dx, dy) || 1;
-
-    if (dist < 110 + player.magnet) {
-      const pull = 270 * dt;
-      s.x += dx / dist * pull;
-      s.y += dy / dist * pull;
-    }
-
-    if (dist < player.radius + 10) {
-      collectShard(i);
-      continue;
-    }
-
-    if (s.life <= 0) shards.splice(i, 1);
-  }
-}
-
-function updatePickups(dt) {
-  for (let i = pickups.length - 1; i >= 0; i--) {
-    const p = pickups[i];
-
-    p.life -= dt;
-    p.rotation += dt * 1.5;
-
-    if (Math.hypot(player.x - p.x, player.y - p.y) < 22) {
-      collectPickup(i);
-      continue;
-    }
-
-    if (p.life <= 0) pickups.splice(i, 1);
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: random(0.25, 0.7),
+      maxLife: 0.7,
+      size: random(1, 3),
+      color
+    });
   }
 }
 
@@ -486,424 +281,689 @@ function updateParticles(dt) {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.life -= dt;
-    p.vx *= Math.pow(.3, dt);
-    p.vy *= Math.pow(.3, dt);
 
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-}
+    p.vx *= 0.98;
+    p.vy *= 0.98;
 
-function updateFloatingTexts(dt) {
-  for (let i = floatingTexts.length - 1; i >= 0; i--) {
-    const t = floatingTexts[i];
-    t.y -= 30 * dt;
-    t.life -= dt;
-
-    if (t.life <= 0) floatingTexts.splice(i, 1);
-  }
-}
-
-function updateStars(dt) {
-  stars.forEach(s => {
-    s.y += s.speed * dt;
-
-    if (s.y > H) {
-      s.y = 0;
-      s.x = random(0, W);
-    }
-  });
-}
-
-function updateCombo(dt) {
-  if (comboTimer > 0) {
-    comboTimer -= dt;
-
-    if (comboTimer <= 0) {
-      combo = 1;
+    if (p.life <= 0) {
+      particles.splice(i, 1);
     }
   }
 }
 
-/* =========================================
-   SPAWNING AND SECTORS
-========================================= */
+/* =========================================================
+   ENEMIES
+========================================================= */
 
-function updateSpawning(dt) {
-  spawnTimer -= dt;
-  pickupTimer -= dt;
+const enemyTypes = {
+  seeker: {
+    radius: 10,
+    speed: 105,
+    health: 1,
+    damage: 10,
+    color: "#555"
+  },
 
-  const difficulty = 1 + (sector - 1) * .14;
+  drifter: {
+    radius: 15,
+    speed: 65,
+    health: 3,
+    damage: 15,
+    color: "#999"
+  },
 
-  if (spawnTimer <= 0) {
-    spawnEnemy();
-
-    if (Math.random() < .22 + sector * .012) {
-      spawnEnemy();
-    }
-
-    spawnTimer = Math.max(.35, random(1.5, 2.4) / difficulty);
+  hunter: {
+    radius: 12,
+    speed: 155,
+    health: 2,
+    damage: 12,
+    color: "#222"
   }
-
-  if (pickupTimer <= 0) {
-    spawnPickup();
-    pickupTimer = random(13, 21);
-  }
-}
+};
 
 function spawnEnemy() {
-  const side = Math.floor(Math.random() * 4);
-  const margin = 25;
+  const side = Math.floor(random(0, 4));
 
-  let x, y;
+  let x;
+  let y;
 
   if (side === 0) {
     x = random(0, W);
-    y = -margin;
+    y = -30;
   } else if (side === 1) {
-    x = W + margin;
+    x = W + 30;
     y = random(0, H);
   } else if (side === 2) {
     x = random(0, W);
-    y = H + margin;
+    y = H + 30;
   } else {
-    x = -margin;
+    x = -30;
     y = random(0, H);
   }
 
-  let type = "seeker";
   const roll = Math.random();
 
-  if (sector >= 2 && roll < .28) type = "drifter";
-  if (sector >= 4 && roll > .78) type = "hunter";
+  let type = "seeker";
 
-  const configs = {
-    seeker: { radius: 10, speed: 68, hp: 1, damage: 17 },
-    drifter: { radius: 13, speed: 53, hp: 2, damage: 22 },
-    hunter: { radius: 16, speed: 42, hp: 4, damage: 27 }
-  };
+  if (sector >= 2 && roll > 0.68) {
+    type = "drifter";
+  }
 
-  const c = configs[type];
-  const scale = 1 + (sector - 1) * .09;
+  if (sector >= 3 && roll > 0.82) {
+    type = "hunter";
+  }
+
+  const data = enemyTypes[type];
 
   enemies.push({
-    x, y, type,
-    radius: c.radius,
-    speed: c.speed * scale,
-    hp: c.hp,
-    damage: c.damage,
-    rotation: 0,
-    phase: random(0, 6)
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+
+    type,
+
+    radius: data.radius,
+    speed: data.speed + sector * 3,
+    health: data.health + Math.floor(sector / 4),
+    maxHealth: data.health + Math.floor(sector / 4),
+    damage: data.damage,
+
+    color: data.color,
+
+    phase: random(0, Math.PI * 2)
   });
 }
 
-function updateSector(dt) {
-  sectorProgress += dt;
+function updateEnemies(dt) {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const enemy = enemies[i];
 
-  if (sectorProgress >= 35) {
-    sectorProgress = 0;
-    sector++;
-    logEvent("Sector " + sector + " reached.");
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
 
-    // Clear the arena and offer three upgrades.
-    enemies = [];
-    createUpgradeChoices();
+    const dist = Math.hypot(dx, dy) || 1;
+
+    let directionX = dx / dist;
+    let directionY = dy / dist;
+
+    if (enemy.type === "drifter") {
+      enemy.phase += dt * 2;
+
+      directionX += Math.sin(enemy.phase) * 0.35;
+      directionY += Math.cos(enemy.phase) * 0.35;
+    }
+
+    const length = Math.hypot(directionX, directionY) || 1;
+
+    directionX /= length;
+    directionY /= length;
+
+    enemy.vx = directionX * enemy.speed;
+    enemy.vy = directionY * enemy.speed;
+
+    enemy.x += enemy.vx * dt;
+    enemy.y += enemy.vy * dt;
+
+    if (dist < enemy.radius + player.radius) {
+      damagePlayer(enemy.damage);
+    }
   }
 }
 
-/* =========================================
+function destroyEnemy(index) {
+  const enemy = enemies[index];
+
+  if (!enemy) return;
+
+  createParticles(enemy.x, enemy.y, 12, enemy.color);
+
+  enemies.splice(index, 1);
+
+  kills++;
+  combo++;
+  comboTimer = 3;
+
+  const reward = 100 * Math.max(1, combo);
+
+  score += reward;
+  sectorProgress += 1;
+
+  floatingText(enemy.x, enemy.y, `+${reward}`);
+
+  if (combo >= 5) {
+    logEvent(`${combo}× COMBO ACHIEVED`);
+  }
+
+  updateHUD();
+}
+
+/* =========================================================
    DAMAGE AND RECOVERY
-========================================= */
+========================================================= */
 
 function damagePlayer(amount) {
-  if (player.invulnerable > 0 || gameOver || upgrading) return;
+  if (player.invulnerability > 0 || gameOver) return;
 
-  const actualDamage = amount * (1 - player.damageReduction);
+  player.invulnerability = 0.7;
 
   if (player.shield > 0) {
-    const absorbed = Math.min(player.shield, actualDamage);
-    player.shield -= absorbed;
+    const absorbed = Math.min(player.shield, amount);
 
-    player.health -= actualDamage - absorbed;
-  } else {
-    player.health -= actualDamage;
+    player.shield -= absorbed;
+    amount -= absorbed;
   }
 
-  damageTimer = 5;
-  regenTimer = 0;
-  player.invulnerable = .65;
-  shake = 9;
+  if (amount > 0) {
+    player.hull -= amount;
+  }
 
-  burst(player.x, player.y, 12, "#777", 3);
-  floatingText(player.x, player.y - 22, "-" + Math.round(actualDamage), "#555");
+  screenShake = 8;
 
-  if (player.health <= 0) {
-    player.health = 0;
+  createParticles(player.x, player.y, 7, "#777");
+
+  logEvent("WARNING: HULL IMPACT");
+
+  if (player.hull <= 0) {
+    player.hull = 0;
     endGame();
   }
+
+  updateHUD();
 }
 
-/* =========================================
-   COLLECTION
-========================================= */
+function updateRecovery(dt) {
+  // Passive hull recovery.
+  if (player.hull < player.maxHull) {
+    player.regenTimer += dt;
 
-function collectShard(index) {
-  const s = shards[index];
-  shards.splice(index, 1);
+    if (player.regenTimer >= 2.5) {
+      player.hull = Math.min(
+        player.maxHull,
+        player.hull + 0.8 * dt
+      );
+    }
+  }
 
-  comboTimer = 3;
-  combo = Math.min(12, combo + 1);
-
-  const points = Math.round(15 * combo * player.scoreMultiplier);
-  score += points;
-
-  // Energy collection restores a little hull.
-  const healing = player.extraHealing;
-
-  if (healing > 0) {
-    player.health = Math.min(
-      player.maxHealth,
-      player.health + healing
+  // Shield recovery.
+  if (player.shield < player.maxShield) {
+    player.shield = Math.min(
+      player.maxShield,
+      player.shield + 2.2 * dt
     );
   }
 
-  floatingText(s.x, s.y, "+" + points, "#555");
-  burst(s.x, s.y, 5, "#777", 2);
+  // Dash energy recovery.
+  if (player.dash < player.maxDash) {
+    player.dash = Math.min(
+      player.maxDash,
+      player.dash + 19 * dt
+    );
+  }
 
-  if (Math.random() < .12) {
-    player.shield = Math.min(player.maxShield, player.shield + 3);
+  updateHUD();
+}
+
+/* =========================================================
+   ENERGY SHARDS
+========================================================= */
+
+function spawnShard() {
+  shards.push({
+    x: random(25, W - 25),
+    y: random(25, H - 25),
+    radius: 5,
+    phase: random(0, Math.PI * 2)
+  });
+}
+
+function collectShard(index) {
+  const shard = shards[index];
+
+  score += 25;
+  player.shield = Math.min(player.maxShield, player.shield + 5);
+  player.dash = Math.min(player.maxDash, player.dash + 8);
+
+  createParticles(shard.x, shard.y, 5, "#aaa");
+
+  floatingText(shard.x, shard.y, "+25");
+
+  shards.splice(index, 1);
+
+  updateHUD();
+}
+
+function updateShards(dt) {
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const shard = shards[i];
+
+    const dx = player.x - shard.x;
+    const dy = player.y - shard.y;
+
+    const dist = Math.hypot(dx, dy) || 1;
+
+    if (dist < player.magnetRange) {
+      const force = 170;
+
+      shard.x += (dx / dist) * force * dt;
+      shard.y += (dy / dist) * force * dt;
+    }
+
+    if (dist < player.radius + shard.radius + 4) {
+      collectShard(i);
+    }
   }
 }
 
-function collectPickup(index) {
-  const p = pickups[index];
-  pickups.splice(index, 1);
-
-  if (p.type === "repair") {
-    const heal = 35;
-    player.health = Math.min(player.maxHealth, player.health + heal);
-    floatingText(player.x, player.y - 25, "+35 HULL", "#555");
-    logEvent("Hull repaired.");
-  }
-
-  if (p.type === "shield") {
-    player.shield = Math.min(player.maxShield, player.shield + 55);
-    floatingText(player.x, player.y - 25, "+55 SHIELD", "#777");
-    logEvent("Shield restored.");
-  }
-
-  if (p.type === "overcharge") {
-    player.dash = 100;
-    player.invulnerable = 1.5;
-    floatingText(player.x, player.y - 25, "OVERCHARGE", "#444");
-    logEvent("Overcharge activated.");
-  }
-
-  burst(p.x, p.y, 16, "#888", 3);
-}
+/* =========================================================
+   PICKUPS
+========================================================= */
 
 function spawnPickup() {
-  const types = ["repair", "shield", "overcharge"];
-  const type = types[Math.floor(Math.random() * types.length)];
+  const types = ["repair", "shield", "energy"];
 
   pickups.push({
     x: random(35, W - 35),
     y: random(35, H - 35),
-    type,
-    life: 11,
-    rotation: 0
+    type: types[Math.floor(Math.random() * types.length)],
+    life: 12,
+    radius: 9
   });
 }
 
-/* =========================================
-   ENEMY DESTRUCTION
-========================================= */
+function collectPickup(index) {
+  const pickup = pickups[index];
 
-function killEnemy(index) {
-  const e = enemies[index];
-  enemies.splice(index, 1);
-
-  kills++;
-  score += Math.round(40 * player.scoreMultiplier);
-
-  sectorProgress += 1.4;
-
-  burst(e.x, e.y, 14, "#666", 3);
-
-  // Shard drops.
-  const amount = e.type === "hunter" ? 4 : e.type === "drifter" ? 2 : 1;
-
-  for (let i = 0; i < amount; i++) {
-    shards.push({
-      x: e.x + random(-9, 9),
-      y: e.y + random(-9, 9),
-      rotation: 0,
-      life: 13
-    });
+  if (pickup.type === "repair") {
+    player.hull = Math.min(player.maxHull, player.hull + 25);
+    logEvent("HULL REPAIRED");
   }
 
-  floatingText(e.x, e.y, "+40", "#555");
+  if (pickup.type === "shield") {
+    player.shield = Math.min(player.maxShield, player.shield + 30);
+    logEvent("SHIELD RESTORED");
+  }
 
-  if (kills % 10 === 0) {
-    logEvent("10 eliminations achieved.");
+  if (pickup.type === "energy") {
+    player.dash = player.maxDash;
+    logEvent("DASH SYSTEM RECHARGED");
+  }
+
+  floatingText(pickup.x, pickup.y, "RECOVERED");
+
+  createParticles(pickup.x, pickup.y, 12, "#888");
+
+  pickups.splice(index, 1);
+
+  updateHUD();
+}
+
+function updatePickups(dt) {
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const pickup = pickups[i];
+
+    pickup.life -= dt;
+
+    if (distance(player, pickup) < player.radius + pickup.radius) {
+      collectPickup(i);
+      continue;
+    }
+
+    if (pickup.life <= 0) {
+      pickups.splice(i, 1);
+    }
   }
 }
 
-/* =========================================
-   PARTICLES AND EFFECTS
-========================================= */
+/* =========================================================
+   PLAYER MOVEMENT
+========================================================= */
 
-function burst(x, y, count, color, force) {
-  for (let i = 0; i < count; i++) {
-    const a = random(0, Math.PI * 2);
-    const speed = random(25, 100) * force;
+function getMovement() {
+  let x = 0;
+  let y = 0;
 
-    particles.push({
-      x, y,
-      vx: Math.cos(a) * speed,
-      vy: Math.sin(a) * speed,
-      life: random(.25, .8),
-      maxLife: .8,
-      size: random(1, 3),
-      color
-    });
+  if (keys.ArrowLeft || keys.a || keys.A) x--;
+  if (keys.ArrowRight || keys.d || keys.D) x++;
+  if (keys.ArrowUp || keys.w || keys.W) y--;
+  if (keys.ArrowDown || keys.s || keys.S) y++;
+
+  x += touchDirection.x;
+  y += touchDirection.y;
+
+  const length = Math.hypot(x, y);
+
+  if (length > 1) {
+    x /= length;
+    y /= length;
   }
+
+  return { x, y };
 }
 
-function floatingText(x, y, text, color) {
-  floatingTexts.push({
-    x, y, text, color, life: .9
+function updatePlayer(dt) {
+  const movement = getMovement();
+
+  const speed = player.speed;
+
+  if (player.dashDuration > 0) {
+    player.dashDuration -= dt;
+
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+  } else {
+    player.vx = movement.x * speed;
+    player.vy = movement.y * speed;
+
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+  }
+
+  player.x = clamp(player.x, player.radius, W - player.radius);
+  player.y = clamp(player.y, player.radius, H - player.radius);
+
+  player.invulnerability = Math.max(
+    0,
+    player.invulnerability - dt
+  );
+
+  player.dashCooldown = Math.max(
+    0,
+    player.dashCooldown - dt
+  );
+
+  player.trail.push({
+    x: player.x,
+    y: player.y,
+    life: 0.35
   });
+
+  if (player.trail.length > 12) {
+    player.trail.shift();
+  }
+
+  for (const point of player.trail) {
+    point.life -= dt;
+  }
+
+  player.trail = player.trail.filter(p => p.life > 0);
 }
 
-/* =========================================
+function dash() {
+  if (!running || paused || upgrading) return;
+
+  if (player.dash < 30 || player.dashCooldown > 0) {
+    return;
+  }
+
+  const movement = getMovement();
+
+  let dx = movement.x;
+  let dy = movement.y;
+
+  if (dx === 0 && dy === 0) {
+    dx = 0;
+    dy = -1;
+  }
+
+  const length = Math.hypot(dx, dy) || 1;
+
+  dx /= length;
+  dy /= length;
+
+  player.vx = dx * 850;
+  player.vy = dy * 850;
+
+  player.dash -= 30;
+  player.dashDuration = 0.17;
+  player.dashCooldown = 0.65;
+  player.invulnerability = 0.3;
+
+  createParticles(player.x, player.y, 10, "#aaa");
+
+  logEvent("PHASE DASH ACTIVATED");
+
+  updateHUD();
+}
+
+/* =========================================================
+   SECTORS
+========================================================= */
+
+function updateSector(dt) {
+  sectorProgress += dt * 0.15;
+
+  const requirement = 18 + sector * 7;
+
+  if (sectorProgress >= requirement) {
+    sectorProgress = 0;
+    sector++;
+
+    logEvent(`SECTOR ${sector} ENTERED`);
+
+    openUpgradeMenu();
+  }
+}
+
+/* =========================================================
    UPGRADES
-========================================= */
+========================================================= */
 
-const upgradePool = [
+const upgrades = [
   {
-    icon: "♥",
     name: "REINFORCED HULL",
-    description: "+30 maximum hull and restore 30 health.",
-    apply: () => {
-      player.maxHealth += 30;
-      player.health = Math.min(player.maxHealth, player.health + 30);
+    description: "+25 maximum hull and restore 25 hull.",
+    apply() {
+      player.maxHull += 25;
+      player.hull = Math.min(player.maxHull, player.hull + 25);
     }
   },
   {
-    icon: "◇",
     name: "SHIELD MATRIX",
-    description: "+40 maximum shield and faster regeneration.",
-    apply: () => {
-      player.maxShield += 40;
-      player.shield = player.maxShield;
-      player.shieldRegen += .6;
+    description: "+25 maximum shield and restore 25 shield.",
+    apply() {
+      player.maxShield += 25;
+      player.shield = Math.min(player.maxShield, player.shield + 25);
     }
   },
   {
-    icon: "↯",
-    name: "PHASE DRIVE",
-    description: "Dash recharges 45% faster.",
-    apply: () => {
-      player.dashMultiplier *= 1.45;
-    }
-  },
-  {
-    icon: "✧",
-    name: "SHARD MAGNET",
-    description: "Collect energy shards from much further away.",
-    apply: () => {
-      player.magnet += 110;
-    }
-  },
-  {
-    icon: "»",
     name: "AFTERBURNER",
-    description: "Increase movement speed by 18%.",
-    apply: () => {
-      player.speedMultiplier *= 1.18;
+    description: "Increase movement speed by 12%.",
+    apply() {
+      player.speed *= 1.12;
     }
   },
   {
-    icon: "◎",
+    name: "SHARD MAGNET",
+    description: "Increase energy collection range.",
+    apply() {
+      player.magnetRange += 65;
+    }
+  },
+  {
     name: "NANOREPAIR",
-    description: "Restore 1.8 hull per second when safe.",
-    apply: () => {
-      regenTimer = 999;
-      player.extraHealing += 1.5;
+    description: "Restore 35 hull immediately.",
+    apply() {
+      player.hull = Math.min(player.maxHull, player.hull + 35);
     }
   },
   {
-    icon: "✦",
-    name: "ENERGY HARVEST",
-    description: "Increase score and shard rewards by 30%.",
-    apply: () => {
-      player.scoreMultiplier *= 1.3;
-      player.extraHealing += 1;
+    name: "PHASE DRIVE",
+    description: "Increase dash energy recovery.",
+    apply() {
+      player.dash = Math.min(player.maxDash, player.dash + 40);
+      player.dashCooldown *= 0.75;
     }
   },
   {
-    icon: "⬡",
-    name: "ARMOR PLATING",
-    description: "Reduce incoming damage by 15%.",
-    apply: () => {
-      player.damageReduction = Math.min(.6, player.damageReduction + .15);
+    name: "OVERCHARGE",
+    description: "Increase score gained from enemy eliminations.",
+    apply() {
+      player.damage += 1;
     }
   }
 ];
 
-function createUpgradeChoices() {
+function openUpgradeMenu() {
+  if (gameOver) return;
+
+  running = false;
   upgrading = true;
-  ui.arenaState.textContent = "EVOLUTION REQUIRED";
 
-  $("upgradeScreen").classList.remove("hidden");
+  showOverlay(ui.upgrade);
 
-  const container = $("upgradeOptions");
-  container.innerHTML = "";
-
-  const choices = [...upgradePool]
-    .sort(() => Math.random() - .5)
+  const options = [...upgrades]
+    .sort(() => Math.random() - 0.5)
     .slice(0, 3);
 
-  choices.forEach(upgrade => {
-    const card = document.createElement("button");
-    card.className = "upgrade-card";
+  const slots = document.querySelectorAll(".upgrade-card");
 
-    const icon = document.createElement("div");
-    icon.className = "upgrade-icon";
-    icon.textContent = upgrade.icon;
+  slots.forEach((slot, index) => {
+    const upgrade = options[index];
 
-    const title = document.createElement("strong");
-    title.textContent = upgrade.name;
+    if (!upgrade) {
+      slot.style.display = "none";
+      return;
+    }
 
-    const desc = document.createElement("p");
-    desc.textContent = upgrade.description;
+    slot.style.display = "";
 
-    card.append(icon, title, desc);
+    const title = slot.querySelector("h3, h2, .upgrade-title");
+    const description = slot.querySelector("p, .upgrade-description");
 
-    card.addEventListener("click", () => {
+    if (title) title.textContent = upgrade.name;
+    if (description) description.textContent = upgrade.description;
+
+    slot.onclick = () => {
       upgrade.apply();
-      upgradesOwned.push(upgrade.name);
 
-      $("upgradeScreen").classList.add("hidden");
+      player.upgrades.push(upgrade.name);
+
+      hideOverlay(ui.upgrade);
+
       upgrading = false;
+      running = true;
 
-      logEvent("Upgrade acquired: " + upgrade.name);
-      ui.arenaState.textContent = "FLIGHT ACTIVE";
+      logEvent(`SYSTEM UPGRADED: ${upgrade.name}`);
 
+      updateHUD();
       lastTime = performance.now();
-      requestAnimationFrame(loop);
-    });
-
-    container.appendChild(card);
+      requestAnimationFrame(gameLoop);
+    };
   });
+
+  if (slots.length === 0) {
+    // Fallback: automatically choose an upgrade if no cards exist.
+    options[0].apply();
+
+    upgrading = false;
+    running = true;
+
+    hideOverlay(ui.upgrade);
+    updateHUD();
+
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  }
 }
 
-/* =========================================
+/* =========================================================
+   GAME START / RESET
+========================================================= */
+
+function resetGame() {
+  score = 0;
+  kills = 0;
+  sector = 1;
+  combo = 0;
+  comboTimer = 0;
+
+  elapsed = 0;
+  sectorProgress = 0;
+  spawnTimer = 0;
+  shardTimer = 0;
+
+  enemies = [];
+  shards = [];
+  particles = [];
+  pickups = [];
+  floatingTexts = [];
+
+  screenShake = 0;
+
+  player = createPlayer();
+
+  updateHUD();
+
+  if (ui.eventLog) {
+    ui.eventLog.innerHTML = "";
+  }
+
+  logEvent("SYSTEM INITIALIZED");
+}
+
+function startGame() {
+  resetGame();
+
+  running = true;
+  paused = false;
+  gameOver = false;
+  upgrading = false;
+
+  hideOverlay(ui.menu);
+  hideOverlay(ui.gameOver);
+  hideOverlay(ui.pause);
+  hideOverlay(ui.upgrade);
+
+  if (ui.arenaState) {
+    ui.arenaState.textContent = "SYSTEM ACTIVE";
+  }
+
+  logEvent("PILOT CONNECTED");
+
+  lastTime = performance.now();
+
+  requestAnimationFrame(gameLoop);
+}
+
+/* =========================================================
+   PAUSE / RESUME
+========================================================= */
+
+function pauseGame() {
+  if (gameOver || upgrading || !player) return;
+
+  if (paused) {
+    paused = false;
+    running = true;
+
+    hideOverlay(ui.pause);
+
+    if (ui.arenaState) {
+      ui.arenaState.textContent = "SYSTEM ACTIVE";
+    }
+
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  } else {
+    paused = true;
+    running = false;
+
+    showOverlay(ui.pause);
+
+    if (ui.arenaState) {
+      ui.arenaState.textContent = "SYSTEM PAUSED";
+    }
+  }
+}
+
+/* =========================================================
    GAME OVER
-========================================= */
+========================================================= */
 
 function endGame() {
   running = false;
+  paused = false;
   gameOver = true;
 
   if (score > best) {
@@ -911,92 +971,371 @@ function endGame() {
     localStorage.setItem("voidrush_best", best);
   }
 
-  $("finalScore").textContent = formatScore(score);
-  $("finalSector").textContent = sector;
-  $("finalKills").textContent = kills;
+  if (ui.finalScore) {
+    ui.finalScore.textContent = formatScore(score);
+  }
 
-  $("gameOverScreen").classList.remove("hidden");
-  ui.arenaState.textContent = "EXPEDITION TERMINATED";
+  if (ui.finalKills) {
+    ui.finalKills.textContent = kills;
+  }
+
+  if (ui.finalSector) {
+    ui.finalSector.textContent = sector;
+  }
+
+  if (ui.arenaState) {
+    ui.arenaState.textContent = "PILOT SIGNAL LOST";
+  }
+
+  createParticles(player.x, player.y, 35, "#555");
+
+  updateHUD();
+
+  showOverlay(ui.gameOver);
+}
+
+/* =========================================================
+   INPUT
+========================================================= */
+
+window.addEventListener("keydown", (event) => {
+  keys[event.key] = true;
+
+  if (
+    ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "]
+      .includes(event.key)
+  ) {
+    event.preventDefault();
+  }
+
+  if (event.key === " " || event.key === "Shift") {
+    dash();
+  }
+
+  if (event.key.toLowerCase() === "p" || event.key === "Escape") {
+    if (running || paused) pauseGame();
+  }
+});
+
+window.addEventListener("keyup", (event) => {
+  keys[event.key] = false;
+});
+
+window.addEventListener("blur", () => {
+  if (running) pauseGame();
+});
+
+/* =========================================================
+   MOBILE TOUCH CONTROLS
+========================================================= */
+
+function setupTouchControls() {
+  const directions = {
+    up: [0, -1],
+    down: [0, 1],
+    left: [-1, 0],
+    right: [1, 0]
+  };
+
+  for (const [name, vector] of Object.entries(directions)) {
+    const button = getElement(
+      `move${name.charAt(0).toUpperCase() + name.slice(1)}`,
+      `${name}Btn`
+    );
+
+    if (!button) continue;
+
+    button.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      touchDirection.x += vector[0];
+      touchDirection.y += vector[1];
+    });
+
+    const release = () => {
+      touchDirection.x -= vector[0];
+      touchDirection.y -= vector[1];
+    };
+
+    button.addEventListener("pointerup", release);
+    button.addEventListener("pointerleave", release);
+    button.addEventListener("pointercancel", release);
+  }
+
+  const dashButton = getElement("dashBtn", "touchDash");
+
+  if (dashButton) {
+    dashButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      dash();
+    });
+  }
+}
+
+setupTouchControls();
+
+/* =========================================================
+   GAME UPDATE
+========================================================= */
+
+function update(dt) {
+  if (!running || paused || gameOver || upgrading) return;
+
+  elapsed += dt;
+
+  updatePlayer(dt);
+  updateEnemies(dt);
+  updateShards(dt);
+  updatePickups(dt);
+  updateParticles(dt);
+  updateRecovery(dt);
+  updateSector(dt);
+
+  spawnTimer += dt;
+  shardTimer += dt;
+
+  const spawnInterval = Math.max(
+    0.38,
+    1.35 - sector * 0.055
+  );
+
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnEnemy();
+  }
+
+  if (shardTimer >= 2.1) {
+    shardTimer = 0;
+    spawnShard();
+  }
+
+  if (elapsed > 15 && Math.random() < dt * 0.025) {
+    spawnPickup();
+  }
+
+  if (comboTimer > 0) {
+    comboTimer -= dt;
+  } else {
+    combo = 0;
+  }
+
+  screenShake = Math.max(0, screenShake - dt * 25);
+
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    floatingTexts[i].y -= 25 * dt;
+    floatingTexts[i].life -= dt;
+
+    if (floatingTexts[i].life <= 0) {
+      floatingTexts.splice(i, 1);
+    }
+  }
 
   updateHUD();
 }
 
-/* =========================================
-   HUD
-========================================= */
+/* =========================================================
+   DRAWING
+========================================================= */
 
-function updateHUD() {
-  ui.score.textContent = formatScore(score);
-  ui.best.textContent = formatScore(best);
-  ui.sector.textContent = String(sector).padStart(2, "0");
-  ui.kills.textContent = String(kills).padStart(2, "0");
-  ui.combo.textContent = "x" + combo;
+function drawBackground() {
+  ctx.fillStyle = "#f1f1f1";
+  ctx.fillRect(0, 0, W, H);
 
-  ui.health.style.width = player.health / player.maxHealth * 100 + "%";
-  ui.shield.style.width = player.shield / player.maxShield * 100 + "%";
-  ui.dash.style.width = player.dash + "%";
+  ctx.strokeStyle = "rgba(0,0,0,0.055)";
+  ctx.lineWidth = 1;
 
-  ui.healthText.textContent = Math.round(player.health) + "%";
-  ui.shieldText.textContent = Math.round(player.shield) + "%";
-  ui.dashText.textContent = player.dash >= 99 ? "READY" : Math.round(player.dash) + "%";
+  const grid = 36;
 
-  ui.position.textContent =
-    Math.round(player.x) + " / " + Math.round(player.y);
-
-  $("regenStatus").textContent =
-    damageTimer <= 0 ? "ONLINE" : "STANDBY";
-
-  $("dashStatus").textContent =
-    player.dash >= 99 ? "READY" : "RECHARGING";
-}
-
-/* =========================================
-   RENDERING
-========================================= */
-
-function render() {
-  ctx.save();
-
-  if (shake > 0) {
-    ctx.translate(random(-shake, shake), random(-shake, shake));
-    shake *= .86;
-  }
-
-  ctx.clearRect(-20, -20, W + 40, H + 40);
-
-  // Background.
-  ctx.fillStyle = "#e5e5e5";
-  ctx.fillRect(-20, -20, W + 40, H + 40);
-
-  // Grid.
-  ctx.strokeStyle = "#d9d9d9";
-  ctx.lineWidth = .7;
-
-  for (let x = 0; x < W; x += 35) {
+  for (let x = 0; x < W; x += grid) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, H);
     ctx.stroke();
   }
 
-  for (let y = 0; y < H; y += 35) {
+  for (let y = 0; y < H; y += grid) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(W, y);
     ctx.stroke();
   }
+}
 
-  // Stars.
-  stars.forEach(s => {
-    ctx.fillStyle = "#aaa";
-    ctx.globalAlpha = .35 + s.size * .15;
+function drawPlayer() {
+  if (!player) return;
+
+  for (const point of player.trail) {
+    ctx.globalAlpha = point.life * 0.35;
+    ctx.fillStyle = "#555";
+
     ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.arc(
+      point.x,
+      point.y,
+      player.radius * point.life,
+      0,
+      Math.PI * 2
+    );
+
     ctx.fill();
-  });
+  }
 
   ctx.globalAlpha = 1;
 
+  if (player.invulnerability > 0 && Math.floor(elapsed * 15) % 2 === 0) {
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(player.x, player.y);
+
+  ctx.fillStyle = "#222";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+  ctx.moveTo(0, -16);
+  ctx.lineTo(12, 11);
+  ctx.lineTo(0, 6);
+  ctx.lineTo(-12, 11);
+  ctx.closePath();
+
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawEnemies() {
+  for (const enemy of enemies) {
+    ctx.fillStyle = enemy.color;
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 1.5;
+
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Enemy health indicator.
+    if (enemy.health < enemy.maxHealth) {
+      const width = enemy.radius * 2;
+
+      ctx.fillStyle = "#ccc";
+      ctx.fillRect(
+        enemy.x - enemy.radius,
+        enemy.y - enemy.radius - 7,
+        width,
+        3
+      );
+
+      ctx.fillStyle = "#222";
+      ctx.fillRect(
+        enemy.x - enemy.radius,
+        enemy.y - enemy.radius - 7,
+        width * (enemy.health / enemy.maxHealth),
+        3
+      );
+    }
+  }
+}
+
+function drawShards() {
+  for (const shard of shards) {
+    shard.phase += 0.04;
+
+    const pulse = Math.sin(shard.phase) * 2;
+
+    ctx.fillStyle = "#777";
+
+    ctx.beginPath();
+    ctx.arc(
+      shard.x,
+      shard.y,
+      shard.radius + pulse,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  }
+}
+
+function drawPickups() {
+  for (const pickup of pickups) {
+    const labels = {
+      repair: "+",
+      shield: "S",
+      energy: "D"
+    };
+
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    ctx.arc(
+      pickup.x,
+      pickup.y,
+      pickup.radius,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#222";
+    ctx.font = "bold 12px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillText(
+      labels[pickup.type],
+      pickup.x,
+      pickup.y
+    );
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+    ctx.fillStyle = p.color;
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+function drawFloatingTexts() {
+  for (const item of floatingTexts) {
+    ctx.globalAlpha = clamp(item.life, 0, 1);
+    ctx.fillStyle = "#333";
+    ctx.font = "bold 12px Arial";
+    ctx.textAlign = "center";
+
+    ctx.fillText(item.text, item.x, item.y);
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  if (!ctx) return;
+
+  ctx.save();
+
+  if (screenShake > 0) {
+    ctx.translate(
+      random(-screenShake, screenShake),
+      random(-screenShake, screenShake)
+    );
+  }
+
+  drawBackground();
   drawShards();
   drawPickups();
   drawEnemies();
@@ -1007,183 +1346,67 @@ function render() {
   ctx.restore();
 }
 
-function drawPlayer() {
-  const p = player;
+/* =========================================================
+   MAIN GAME LOOP
+========================================================= */
 
-  // Trail.
-  p.trail.forEach((t, i) => {
-    ctx.globalAlpha = (1 - i / p.trail.length) * .17;
-    ctx.fillStyle = "#555";
-    ctx.beginPath();
-    ctx.arc(t.x, t.y, 9 - i * .7, 0, Math.PI * 2);
-    ctx.fill();
-  });
+function gameLoop(timestamp) {
+  if (!running || paused || gameOver || upgrading) return;
 
-  ctx.globalAlpha = 1;
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
 
-  if (p.invulnerable > 0 && Math.floor(elapsed * 15) % 2 === 0) {
-    ctx.globalAlpha = .45;
+  lastTime = timestamp;
+
+  update(dt);
+  render();
+
+  if (running) {
+    requestAnimationFrame(gameLoop);
   }
-
-  // Shield.
-  if (p.shield > 0) {
-    ctx.strokeStyle = "#999";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // Spaceship.
-  const angle = Math.atan2(p.direction.y, p.direction.x) + Math.PI / 2;
-
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.rotate(angle);
-
-  ctx.fillStyle = "#333";
-  ctx.beginPath();
-  ctx.moveTo(0, -15);
-  ctx.lineTo(10, 12);
-  ctx.lineTo(0, 7);
-  ctx.lineTo(-10, 12);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.moveTo(0, -8);
-  ctx.lineTo(4, 7);
-  ctx.lineTo(-4, 7);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.restore();
-  ctx.globalAlpha = 1;
 }
 
-function drawEnemies() {
-  enemies.forEach(e => {
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    ctx.rotate(e.rotation);
-
-    ctx.strokeStyle = e.type === "hunter" ? "#333" : "#777";
-    ctx.fillStyle = e.type === "hunter" ? "#555" : "#aaa";
-    ctx.lineWidth = 2;
-
-    if (e.type === "seeker") {
-      ctx.beginPath();
-      ctx.moveTo(0, -e.radius);
-      ctx.lineTo(e.radius, 0);
-      ctx.lineTo(0, e.radius);
-      ctx.lineTo(-e.radius, 0);
-      ctx.closePath();
-    } else if (e.type === "drifter") {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = i * Math.PI / 3;
-        const x = Math.cos(a) * e.radius;
-        const y = Math.sin(a) * e.radius;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-    } else {
-      ctx.beginPath();
-      ctx.rect(-e.radius, -e.radius, e.radius * 2, e.radius * 2);
-    }
-
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  });
-}
-
-function drawShards() {
-  shards.forEach(s => {
-    ctx.save();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(s.rotation);
-
-    ctx.fillStyle = "#777";
-    ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.lineTo(6, 0);
-    ctx.lineTo(0, 7);
-    ctx.lineTo(-6, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
-  });
-}
-
-function drawPickups() {
-  pickups.forEach(p => {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.rotation);
-
-    const colors = {
-      repair: "#555",
-      shield: "#999",
-      overcharge: "#333"
-    };
-
-    ctx.strokeStyle = colors[p.type];
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-9, -9, 18, 18);
-
-    ctx.fillStyle = colors[p.type];
-    ctx.font = "bold 13px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    ctx.fillText(
-      p.type === "repair" ? "+" :
-      p.type === "shield" ? "◇" : "⚡",
-      0, 0
-    );
-
-    ctx.restore();
-  });
-}
-
-function drawParticles() {
-  particles.forEach(p => {
-    ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  ctx.globalAlpha = 1;
-}
-
-function drawFloatingTexts() {
-  floatingTexts.forEach(t => {
-    ctx.globalAlpha = clamp(t.life, 0, 1);
-    ctx.fillStyle = t.color;
-    ctx.font = "bold 11px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(t.text, t.x, t.y);
-  });
-
-  ctx.globalAlpha = 1;
-}
-
-/* =========================================
+/* =========================================================
    BUTTONS
-========================================= */
+========================================================= */
 
-$("startBtn").addEventListener("click", startGame);
-$("retryBtn").addEventListener("click", startGame);
-$("pauseBtn").addEventListener("click", pauseGame);
-$("resumeBtn").addEventListener("click", pauseGame);
+if (ui.startBtn) {
+  ui.startBtn.addEventListener("click", startGame);
+}
 
-ui.best.textContent = formatScore(best);
+if (ui.retryBtn) {
+  ui.retryBtn.addEventListener("click", startGame);
+}
 
+if (ui.pauseBtn) {
+  ui.pauseBtn.addEventListener("click", pauseGame);
+}
+
+if (ui.resumeBtn) {
+  ui.resumeBtn.addEventListener("click", pauseGame);
+}
+
+/* =========================================================
+   INITIALIZATION
+========================================================= */
+
+// IMPORTANT: Create the player before rendering.
 player = createPlayer();
+
+updateHUD();
+
+if (ui.arenaState) {
+  ui.arenaState.textContent = "AWAITING PILOT";
+}
+
+if (ui.best) {
+  ui.best.textContent = formatScore(best);
+}
+
+hideOverlay(ui.pause);
+hideOverlay(ui.gameOver);
+hideOverlay(ui.upgrade);
+
+// Keep the menu visible on startup.
 render();
+
+console.log("VOID//RUSH 2.0 — SYSTEM ONLINE");
