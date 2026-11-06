@@ -164,10 +164,11 @@ function createPlayer() {
 
     radius: 12,
 
-    vx: 0,
-    vy: 0,
+   vx: 0,
+   vy: 0,
+   angle: 0,
 
-    speed: 250,
+   speed: 250,
 
     hull: 100,
     maxHull: 100,
@@ -627,7 +628,10 @@ function updatePlayer(dt) {
     player.x += player.vx * dt;
     player.y += player.vy * dt;
   }
-
+  // Rotate ship toward its movement direction
+  if (Math.hypot(player.vx, player.vy) > 5) {
+    player.angle = Math.atan2(player.vy, player.vx) + Math.PI / 2;
+  }
   player.x = clamp(player.x, player.radius, W - player.radius);
   player.y = clamp(player.y, player.radius, H - player.radius);
 
@@ -1090,7 +1094,7 @@ function drawPlayer() {
   ctx.save();
 
   ctx.translate(player.x, player.y);
-
+  ctx.rotate(player.angle);
   ctx.fillStyle = "#222";
   ctx.strokeStyle = "#fff";
   ctx.lineWidth = 2;
