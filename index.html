@@ -7,203 +7,245 @@
   <meta name="theme-color" content="#eeeeee">
   <title>VOID//RUSH 2.0</title>
   <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
+
 <body>
-  <div class="game-shell">
+  <div class="app">
 
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">V</span>
-        <div>
-          <h1>VOID<span>//</span>RUSH</h1>
-          <small>EXPEDITION 02</small>
-        </div>
-      </div>
+      <a class="brand" href="#">
+        VOID<span>//</span>RUSH
+        <small>VERSION 2.0</small>
+      </a>
 
       <div class="top-status">
         <span class="status-dot"></span>
         SYSTEM ONLINE
       </div>
 
-      <button id="pauseBtn" class="icon-btn" aria-label="Pause">Ⅱ</button>
+      <button id="pauseBtn" class="icon-button" aria-label="Pause game">
+        II
+      </button>
     </header>
 
-    <main>
-      <section class="game-heading">
-        <div>
-          <p class="eyebrow">INFINITE SURVIVAL PROTOCOL</p>
-          <h2>Enter the <span>Void.</span></h2>
-          <p class="subtitle">Survive. Adapt. Recover. Transcend.</p>
-        </div>
-        <div class="version">V2.0.1 <span>BUILD 026</span></div>
-      </section>
+    <main class="main-layout">
 
-      <section class="hud">
-        <div class="hud-card">
-          <small>SCORE</small>
-          <strong id="score">000000</strong>
-        </div>
-        <div class="hud-card">
-          <small>BEST</small>
-          <strong id="best">000000</strong>
-        </div>
-        <div class="hud-card">
-          <small>SECTOR</small>
-          <strong id="sector">01</strong>
-        </div>
-        <div class="hud-card">
-          <small>ELIMINATIONS</small>
-          <strong id="kills">00</strong>
-        </div>
-        <div class="hud-card">
-          <small>COMBO</small>
-          <strong id="combo">x1</strong>
-        </div>
-      </section>
+      <section class="game-column">
 
-      <section class="arena-wrap">
-        <div class="arena-top">
-          <span><i></i> LIVE SIMULATION</span>
-          <span id="arenaState">AWAITING PILOT</span>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SURVIVAL PROTOCOL / 02</p>
+            <h1>THE VOID</h1>
+          </div>
+
+          <div class="sector-display">
+            <span>CURRENT SECTOR</span>
+            <strong id="sector">01</strong>
+          </div>
         </div>
 
-        <div class="arena" id="arena">
+        <div class="arena-shell">
+
           <canvas id="gameCanvas"></canvas>
 
-          <div class="scanlines"></div>
+          <div class="arena-topline">
+            <span id="arenaState">AWAITING PILOT</span>
+            <span>LIVE SIMULATION</span>
+          </div>
 
-          <div class="arena-overlay" id="startScreen">
+          <div id="menuOverlay" class="overlay">
             <div class="overlay-content">
-              <div class="orbit-icon">✧</div>
-              <p class="eyebrow">PILOT IDENTIFICATION: READY</p>
-              <h2>THE VOID<br><span>AWAITS.</span></h2>
-              <p>Navigate the unknown. Collect energy.<br>Stay alive for as long as possible.</p>
-              <button class="primary-btn" id="startBtn">
+              <p class="eyebrow">INCOMING TRANSMISSION</p>
+              <h2>ENTER THE VOID.</h2>
+              <p class="overlay-description">
+                Survive the collapsing sectors. Collect energy.
+                Upgrade your systems. Keep moving.
+              </p>
+
+              <button id="startBtn" class="primary-button">
                 INITIALIZE RUN <span>→</span>
               </button>
-              <small>WASD / ARROWS TO MOVE · SPACE TO DASH</small>
+
+              <p class="control-hint">
+                WASD / ARROWS TO MOVE · SPACE TO DASH
+              </p>
             </div>
           </div>
 
-          <div class="arena-overlay hidden" id="pauseScreen">
+          <div id="pauseOverlay" class="overlay hidden">
             <div class="overlay-content">
-              <div class="orbit-icon">Ⅱ</div>
-              <p class="eyebrow">FLIGHT SUSPENDED</p>
-              <h2>PAUSED<span>.</span></h2>
-              <p>Your expedition is safely suspended.</p>
-              <button class="primary-btn" id="resumeBtn">
-                RESUME FLIGHT →
+              <p class="eyebrow">SIMULATION SUSPENDED</p>
+              <h2>PAUSED.</h2>
+              <p class="overlay-description">
+                Your pilot is safe. Resume when ready.
+              </p>
+              <button id="resumeBtn" class="primary-button">
+                RESUME RUN <span>→</span>
               </button>
             </div>
           </div>
 
-          <div class="arena-overlay hidden" id="upgradeScreen">
+          <div id="upgradeOverlay" class="overlay hidden">
             <div class="overlay-content upgrade-content">
               <p class="eyebrow">SECTOR COMPLETE</p>
-              <h2>EVOLUTION<span>.</span></h2>
-              <p>Choose an upgrade for your next expedition.</p>
-              <div class="upgrade-options" id="upgradeOptions"></div>
+              <h2>CHOOSE AN UPGRADE.</h2>
+              <p class="overlay-description">
+                Select one system enhancement to continue.
+              </p>
+              <div id="upgradeOptions" class="upgrade-options"></div>
             </div>
           </div>
 
-          <div class="arena-overlay hidden" id="gameOverScreen">
+          <div id="gameOverOverlay" class="overlay hidden">
             <div class="overlay-content">
-              <div class="orbit-icon">×</div>
-              <p class="eyebrow">EXPEDITION TERMINATED</p>
-              <h2>LOST IN<br><span>THE VOID.</span></h2>
+              <p class="eyebrow">PILOT SIGNAL LOST</p>
+              <h2>RUN TERMINATED.</h2>
+
               <div class="final-stats">
-                <div><small>FINAL SCORE</small><strong id="finalScore">0</strong></div>
-                <div><small>SECTORS</small><strong id="finalSector">1</strong></div>
-                <div><small>ELIMINATIONS</small><strong id="finalKills">0</strong></div>
+                <div>
+                  <span>FINAL SCORE</span>
+                  <strong id="finalScore">0</strong>
+                </div>
+                <div>
+                  <span>ELIMINATIONS</span>
+                  <strong id="finalKills">0</strong>
+                </div>
+                <div>
+                  <span>SECTOR</span>
+                  <strong id="finalSector">1</strong>
+                </div>
               </div>
-              <button class="primary-btn" id="retryBtn">
-                RESTART EXPEDITION →
+
+              <button id="retryBtn" class="primary-button">
+                REINITIALIZE <span>→</span>
               </button>
             </div>
           </div>
 
-          <div class="mobile-controls" id="mobileControls">
-            <div class="dpad">
-              <button data-dir="up">↑</button>
-              <div>
-                <button data-dir="left">←</button>
-                <button data-dir="down">↓</button>
-                <button data-dir="right">→</button>
-              </div>
+        </div>
+
+        <div class="mobile-controls">
+          <div class="direction-pad">
+            <button data-direction="up" aria-label="Move up">↑</button>
+            <div class="direction-middle">
+              <button data-direction="left" aria-label="Move left">←</button>
+              <button data-direction="down" aria-label="Move down">↓</button>
+              <button data-direction="right" aria-label="Move right">→</button>
             </div>
-            <button class="dash-button" id="touchDash">DASH</button>
           </div>
+
+          <button id="mobileDashBtn" class="dash-button">
+            DASH
+          </button>
         </div>
 
-        <div class="arena-bottom">
-          <span>POSITION: <b id="position">0 / 0</b></span>
-          <span>FPS: <b id="fps">60</b></span>
-          <span>ENGINE: <b>VOID CORE</b></span>
-        </div>
       </section>
 
-      <section class="vitals">
-        <div class="vital">
-          <div class="vital-heading">
-            <span>HULL INTEGRITY</span>
-            <b id="healthText">100%</b>
-          </div>
-          <div class="bar"><div id="healthBar" class="bar-fill health-fill"></div></div>
-        </div>
+      <aside class="sidebar">
 
-        <div class="vital">
-          <div class="vital-heading">
-            <span>ENERGY SHIELD</span>
-            <b id="shieldText">100%</b>
-          </div>
-          <div class="bar"><div id="shieldBar" class="bar-fill shield-fill"></div></div>
-        </div>
+        <section class="panel score-panel">
+          <p class="eyebrow">PERFORMANCE</p>
+          <div class="score-label">CURRENT SCORE</div>
+          <strong id="score" class="big-score">000000</strong>
 
-        <div class="vital">
-          <div class="vital-heading">
-            <span>DASH CHARGE</span>
-            <b id="dashText">READY</b>
+          <div class="stat-row">
+            <span>PERSONAL BEST</span>
+            <strong id="best">000000</strong>
           </div>
-          <div class="bar"><div id="dashBar" class="bar-fill dash-fill"></div></div>
-        </div>
-      </section>
 
-      <section class="bottom-grid">
-        <div class="panel">
-          <div class="panel-heading">
-            <h3>FLIGHT SYSTEMS</h3>
-            <span>ACTIVE</span>
+          <div class="stat-row">
+            <span>ELIMINATIONS</span>
+            <strong id="kills">0</strong>
           </div>
+
+          <div class="stat-row">
+            <span>COMBO</span>
+            <strong id="combo">x1</strong>
+          </div>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">PILOT VITALS</p>
+
+          <div class="vital">
+            <div class="vital-heading">
+              <span>HULL INTEGRITY</span>
+              <strong id="hullText">100%</strong>
+            </div>
+            <div class="bar-track">
+              <div id="hullBar" class="bar-fill hull-fill"></div>
+            </div>
+          </div>
+
+          <div class="vital">
+            <div class="vital-heading">
+              <span>SHIELD CAPACITY</span>
+              <strong id="shieldText">50%</strong>
+            </div>
+            <div class="bar-track">
+              <div id="shieldBar" class="bar-fill shield-fill"></div>
+            </div>
+          </div>
+
+          <div class="vital">
+            <div class="vital-heading">
+              <span>PHASE ENERGY</span>
+              <strong id="dashText">100%</strong>
+            </div>
+            <div class="bar-track">
+              <div id="dashBar" class="bar-fill dash-fill"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">SYSTEMS</p>
+
           <div class="system-row">
-            <span>Hull regeneration</span><b id="regenStatus">ONLINE</b>
+            <span class="system-icon">01</span>
+            <div>
+              <strong>HULL REGENERATION</strong>
+              <small>Passive recovery enabled</small>
+            </div>
+            <span class="system-status">ON</span>
           </div>
-          <div class="system-row">
-            <span>Energy collection</span><b>ONLINE</b>
-          </div>
-          <div class="system-row">
-            <span>Phase drive</span><b id="dashStatus">READY</b>
-          </div>
-        </div>
 
-        <div class="panel">
-          <div class="panel-heading">
-            <h3>EXPEDITION LOG</h3>
-            <span>LIVE</span>
+          <div class="system-row">
+            <span class="system-icon">02</span>
+            <div>
+              <strong>ENERGY MAGNET</strong>
+              <small>Automatic collection</small>
+            </div>
+            <span class="system-status">ON</span>
           </div>
-          <div id="eventLog" class="event-log">
-            <p>System initialized.</p>
-            <p>Awaiting pilot deployment...</p>
-          </div>
-        </div>
-      </section>
 
-      <footer>
-        <span>VOID//RUSH 2.0</span>
-        <span>DESIGNED FOR THE ENDLESS.</span>
-      </footer>
+          <div class="system-row">
+            <span class="system-icon">03</span>
+            <div>
+              <strong>PHASE DRIVE</strong>
+              <small>Emergency dash system</small>
+            </div>
+            <span class="system-status">ON</span>
+          </div>
+        </section>
+
+        <section class="panel log-panel">
+          <p class="eyebrow">SYSTEM EVENT LOG</p>
+          <div id="eventLog">
+            <div>System awaiting initialization...</div>
+          </div>
+        </section>
+
+      </aside>
     </main>
-  </div>
 
-  <script src="script.js"></script>
+    <footer>
+      <span>VOID//RUSH 2.0</span>
+      <span>INDEPENDENT SURVIVAL SIMULATION</span>
+      <span>© 2026</span>
+    </footer>
+
+  </div>
 </body>
 </html>
