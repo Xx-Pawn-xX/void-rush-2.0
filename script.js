@@ -276,15 +276,15 @@ const enemyTypes = {
   },
 
   drifter: {
-    radius: 15,
+    radius: 10,
     speed: 65,
-    health: 3,
-    damage: 15,
+    health: 2,
+    damage: 10,
     color: "#ef4444"
   },
 
   hunter: {
-    radius: 12,
+    radius: 14,
     speed: 155,
     health: 2,
     damage: 12,
