@@ -3,339 +3,155 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#eeeeee">
-
-  <meta
-    name="description"
-    content="VOID//RUSH 2.0 — survive the collapsing digital universe."
-  >
-
   <title>VOID//RUSH 2.0</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-    rel="stylesheet"
-  >
-
   <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 
 <body>
-
   <div class="app">
 
-    <!-- HEADER -->
-    <header class="header">
+    <header class="topbar">
+      <a class="brand" href="#">
+        VOID<span>//</span>RUSH
+        <small>VERSION 2.0</small>
+      </a>
 
-      <div class="brand">
-        <div class="brand-mark">V</div>
-
-        <div class="brand-text">
-          <h1>VOID<span>//</span>RUSH</h1>
-          <p>VERSION 2.0</p>
-        </div>
+      <div class="top-status">
+        <span class="status-dot"></span>
+        SYSTEM ONLINE
       </div>
 
-      <div class="header-right">
-        <span class="system-status">
-          <span class="status-dot"></span>
-          SYSTEM ONLINE
-        </span>
-
-        <button id="pauseBtn" class="pause-button">
-          PAUSE
-        </button>
-      </div>
-
+      <button id="pauseBtn" class="icon-button" aria-label="Pause game">
+        II
+      </button>
     </header>
 
-
-    <!-- MAIN LAYOUT -->
     <main class="main-layout">
 
-      <!-- GAME COLUMN -->
       <section class="game-column">
 
         <div class="section-heading">
-
           <div>
-            <span class="eyebrow">COMBAT SIMULATION</span>
-            <h2>THE ARENA</h2>
+            <p class="eyebrow">SURVIVAL PROTOCOL / 02</p>
+            <h1>THE VOID</h1>
           </div>
 
           <div class="sector-display">
-            <span>SECTOR</span>
+            <span>CURRENT SECTOR</span>
             <strong id="sector">01</strong>
           </div>
-
         </div>
 
-
-        <!-- ARENA -->
         <div class="arena-shell">
-
-          <div class="arena-topline">
-            <span id="arenaState">AWAITING PILOT</span>
-            <span>VOID//RUSH 2.0</span>
-          </div>
 
           <canvas id="gameCanvas"></canvas>
 
+          <div class="arena-topline">
+            <span id="arenaState">AWAITING PILOT</span>
+            <span>LIVE SIMULATION</span>
+          </div>
 
-          <!-- START MENU -->
           <div id="menuOverlay" class="overlay">
-
             <div class="overlay-content">
-
-              <span class="eyebrow">PILOT CONNECTION REQUIRED</span>
-
+              <p class="eyebrow">INCOMING TRANSMISSION</p>
               <h2>ENTER THE VOID.</h2>
-
-              <p>
-                Survive the incoming threats.
-                Collect energy. Upgrade your systems.
-                Reach the highest sector possible.
+              <p class="overlay-description">
+                Survive the collapsing sectors. Collect energy.
+                Upgrade your systems. Keep moving.
               </p>
 
               <button id="startBtn" class="primary-button">
-                INITIALIZE RUN
+                INITIALIZE RUN <span>→</span>
               </button>
 
-              <div class="menu-hint">
-                MOVE: WASD / ARROW KEYS
-                <span> DASH: SPACE / SHIFT</span>
-              </div>
-
-            </div>
-
-          </div>
-
-
-          <!-- PAUSE MENU -->
-          <div id="pauseOverlay" class="overlay hidden">
-
-            <div class="overlay-content">
-
-              <span class="eyebrow">SIMULATION SUSPENDED</span>
-
-              <h2>PAUSED.</h2>
-
-              <p>
-                Your run is currently suspended.
-                Resume when you're ready.
+              <p class="control-hint">
+                WASD / ARROWS TO MOVE · SPACE TO DASH
               </p>
-
-              <button id="resumeBtn" class="primary-button">
-                RESUME RUN
-              </button>
-
             </div>
-
           </div>
 
+          <div id="pauseOverlay" class="overlay hidden">
+            <div class="overlay-content">
+              <p class="eyebrow">SIMULATION SUSPENDED</p>
+              <h2>PAUSED.</h2>
+              <p class="overlay-description">
+                Your pilot is safe. Resume when ready.
+              </p>
+              <button id="resumeBtn" class="primary-button">
+                RESUME RUN <span>→</span>
+              </button>
+            </div>
+          </div>
 
-          <!-- UPGRADE MENU -->
           <div id="upgradeOverlay" class="overlay hidden">
-
             <div class="overlay-content upgrade-content">
-
-              <span class="eyebrow">SECTOR COMPLETE</span>
-
+              <p class="eyebrow">SECTOR COMPLETE</p>
               <h2>CHOOSE AN UPGRADE.</h2>
-
-              <p>
+              <p class="overlay-description">
                 Select one system enhancement to continue.
               </p>
-
               <div id="upgradeOptions" class="upgrade-options"></div>
-
             </div>
-
           </div>
 
-
-          <!-- MODE SELECTION -->
-          <div id="modeOverlay" class="overlay hidden">
-
-            <div class="overlay-content mode-content">
-
-              <span class="eyebrow">SECTOR 04 COMPLETE</span>
-
-              <h2>CHOOSE YOUR PATH.</h2>
-
-              <p>
-                Select the difficulty protocol for the remaining sectors.
-                Your decision will affect the rest of this run.
-              </p>
-
-              <div class="mode-options">
-
-                <button id="normalModeBtn" class="mode-card">
-
-                  <span class="upgrade-number">
-                    PROTOCOL 01
-                  </span>
-
-                  <strong>NORMAL MODE</strong>
-
-                  <p>
-                    Continue the standard survival experience.
-                    Face the regular enemy progression.
-                  </p>
-
-                </button>
-
-
-                <button id="killerModeBtn" class="mode-card killer-card">
-
-                  <span class="upgrade-number">
-                    PROTOCOL 02
-                  </span>
-
-                  <strong>KILLER MODE</strong>
-
-                  <p>
-                    Stronger hunters. More recovery drops.
-                    Increased elimination rewards.
-                  </p>
-
-                </button>
-
-              </div>
-
-            </div>
-
-          </div>
-
-
-          <!-- GAME OVER -->
           <div id="gameOverOverlay" class="overlay hidden">
-
             <div class="overlay-content">
-
-              <span class="eyebrow">PILOT SIGNAL LOST</span>
-
+              <p class="eyebrow">PILOT SIGNAL LOST</p>
               <h2>RUN TERMINATED.</h2>
 
-              <p>
-                Your simulation has ended.
-                Review your final statistics.
-              </p>
-
               <div class="final-stats">
-
-                <div class="final-stat">
+                <div>
                   <span>FINAL SCORE</span>
                   <strong id="finalScore">0</strong>
                 </div>
-
-                <div class="final-stat">
+                <div>
                   <span>ELIMINATIONS</span>
                   <strong id="finalKills">0</strong>
                 </div>
-
-                <div class="final-stat">
-                  <span>FINAL SECTOR</span>
+                <div>
+                  <span>SECTOR</span>
                   <strong id="finalSector">1</strong>
                 </div>
-
               </div>
 
               <button id="retryBtn" class="primary-button">
-                RESTART SIMULATION
+                REINITIALIZE <span>→</span>
               </button>
-
             </div>
-
           </div>
 
         </div>
 
-
-        <!-- MOBILE CONTROLS -->
         <div class="mobile-controls">
-
-          <div class="dpad">
-
-            <button
-              class="direction-button up"
-              data-direction="up"
-              aria-label="Move up"
-            >
-              ↑
-            </button>
-
-            <button
-              class="direction-button left"
-              data-direction="left"
-              aria-label="Move left"
-            >
-              ←
-            </button>
-
-            <button
-              class="direction-button down"
-              data-direction="down"
-              aria-label="Move down"
-            >
-              ↓
-            </button>
-
-            <button
-              class="direction-button right"
-              data-direction="right"
-              aria-label="Move right"
-            >
-              →
-            </button>
-
+          <div class="direction-pad">
+            <button data-direction="up" aria-label="Move up">↑</button>
+            <div class="direction-middle">
+              <button data-direction="left" aria-label="Move left">←</button>
+              <button data-direction="down" aria-label="Move down">↓</button>
+              <button data-direction="right" aria-label="Move right">→</button>
+            </div>
           </div>
 
           <button id="mobileDashBtn" class="dash-button">
-            <span>DASH</span>
-            <strong>PHASE</strong>
+            DASH
           </button>
-
         </div>
 
       </section>
 
-
-      <!-- SIDEBAR -->
       <aside class="sidebar">
 
-        <!-- SCORE -->
         <section class="panel score-panel">
+          <p class="eyebrow">PERFORMANCE</p>
+          <div class="score-label">CURRENT SCORE</div>
+          <strong id="score" class="big-score">000000</strong>
 
-          <span class="panel-label">CURRENT SCORE</span>
-
-          <strong id="score" class="score-value">
-            0
-          </strong>
-
-          <div class="best-score">
+          <div class="stat-row">
             <span>PERSONAL BEST</span>
-            <strong id="best">0</strong>
-          </div>
-
-        </section>
-
-
-        <!-- RUN STATISTICS -->
-        <section class="panel">
-
-          <div class="panel-heading">
-            <span>RUN STATISTICS</span>
-            <span class="panel-indicator">LIVE</span>
+            <strong id="best">000000</strong>
           </div>
 
           <div class="stat-row">
@@ -344,147 +160,92 @@
           </div>
 
           <div class="stat-row">
-            <span>COMBO MULTIPLIER</span>
+            <span>COMBO</span>
             <strong id="combo">x1</strong>
           </div>
-
         </section>
 
-
-        <!-- PLAYER SYSTEMS -->
         <section class="panel">
+          <p class="eyebrow">PILOT VITALS</p>
 
-          <div class="panel-heading">
-            <span>PLAYER SYSTEMS</span>
-            <span class="panel-indicator">ACTIVE</span>
-          </div>
-
-
-          <!-- HULL -->
-          <div class="resource-block">
-
-            <div class="resource-heading">
+          <div class="vital">
+            <div class="vital-heading">
               <span>HULL INTEGRITY</span>
               <strong id="hullText">100%</strong>
             </div>
-
-            <div class="resource-track">
-              <div
-                id="hullBar"
-                class="resource-fill hull-fill"
-                style="width: 100%"
-              ></div>
+            <div class="bar-track">
+              <div id="hullBar" class="bar-fill hull-fill"></div>
             </div>
-
           </div>
 
-
-          <!-- SHIELD -->
-          <div class="resource-block">
-
-            <div class="resource-heading">
+          <div class="vital">
+            <div class="vital-heading">
               <span>SHIELD CAPACITY</span>
               <strong id="shieldText">50%</strong>
             </div>
-
-            <div class="resource-track">
-              <div
-                id="shieldBar"
-                class="resource-fill shield-fill"
-                style="width: 100%"
-              ></div>
+            <div class="bar-track">
+              <div id="shieldBar" class="bar-fill shield-fill"></div>
             </div>
-
           </div>
 
-
-          <!-- DASH -->
-          <div class="resource-block">
-
-            <div class="resource-heading">
+          <div class="vital">
+            <div class="vital-heading">
               <span>PHASE ENERGY</span>
               <strong id="dashText">100%</strong>
             </div>
-
-            <div class="resource-track">
-              <div
-                id="dashBar"
-                class="resource-fill dash-fill"
-                style="width: 100%"
-              ></div>
+            <div class="bar-track">
+              <div id="dashBar" class="bar-fill dash-fill"></div>
             </div>
-
           </div>
-
         </section>
 
-
-        <!-- SYSTEM INFORMATION -->
         <section class="panel">
+          <p class="eyebrow">SYSTEMS</p>
 
-          <div class="panel-heading">
-            <span>SYSTEM INFORMATION</span>
+          <div class="system-row">
+            <span class="system-icon">01</span>
+            <div>
+              <strong>HULL REGENERATION</strong>
+              <small>Passive recovery enabled</small>
+            </div>
+            <span class="system-status">ON</span>
           </div>
 
-          <div class="system-info">
+          <div class="system-row">
+            <span class="system-icon">02</span>
             <div>
-              <span>HULL REGENERATION</span>
-              <strong>PASSIVE</strong>
+              <strong>ENERGY MAGNET</strong>
+              <small>Automatic collection</small>
             </div>
-
-            <div>
-              <span>SHARD COLLECTION</span>
-              <strong>AUTO</strong>
-            </div>
-
-            <div>
-              <span>PHASE DASH</span>
-              <strong>READY</strong>
-            </div>
-
+            <span class="system-status">ON</span>
           </div>
 
+          <div class="system-row">
+            <span class="system-icon">03</span>
+            <div>
+              <strong>PHASE DRIVE</strong>
+              <small>Emergency dash system</small>
+            </div>
+            <span class="system-status">ON</span>
+          </div>
         </section>
 
-
-        <!-- EVENT LOG -->
-        <section class="panel event-panel">
-
-          <div class="panel-heading">
-            <span>EVENT LOG</span>
-            <span class="panel-indicator">SYSTEM</span>
+        <section class="panel log-panel">
+          <p class="eyebrow">SYSTEM EVENT LOG</p>
+          <div id="eventLog">
+            <div>System awaiting initialization...</div>
           </div>
-
-          <div id="eventLog" class="event-log">
-            <div>SYSTEM STANDBY</div>
-          </div>
-
         </section>
 
       </aside>
-
     </main>
 
-
-    <!-- FOOTER -->
-    <footer class="footer">
-
+    <footer>
       <span>VOID//RUSH 2.0</span>
-
-      <span>
-        SURVIVE. ADAPT. DOMINATE.
-      </span>
-
-      <span>
-        SYSTEM BUILD 002
-      </span>
-
+      <span>INDEPENDENT SURVIVAL SIMULATION</span>
+      <span>© 2026</span>
     </footer>
 
   </div>
-
-
-  <script src="script.js"></script>
-
 </body>
 </html>
