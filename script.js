@@ -273,7 +273,7 @@ const enemyTypes = {
     speed: 105,
     health: 1,
     damage: 10,
-    color: "#555"
+    color: "#eab308" // YELLOW
   },
 
   drifter: {
@@ -281,7 +281,7 @@ const enemyTypes = {
     speed: 65,
     health: 3,
     damage: 15,
-    color: "#999"
+    color: "#ef4444" // RED
   },
 
   hunter: {
@@ -289,7 +289,7 @@ const enemyTypes = {
     speed: 155,
     health: 2,
     damage: 12,
-    color: "#222"
+    color: "#f97316" // ORANGE
   }
 };
 
