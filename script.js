@@ -3,7 +3,6 @@
 
 /* =========================================================
    VOID//RUSH 2.0 — COMPLETE GAME ENGINE
-   NORMAL MODE + KILLER MODE
 ========================================================= */
 
 const $ = id => document.getElementById(id);
@@ -28,10 +27,6 @@ const ui = {
   pauseOverlay: $("pauseOverlay"),
   upgradeOverlay: $("upgradeOverlay"),
   gameOverOverlay: $("gameOverOverlay"),
-
-  modeOverlay: $("modeOverlay"),
-  normalMode: $("normalModeBtn"),
-  killerMode: $("killerModeBtn"),
 
   upgradeOptions: $("upgradeOptions"),
 
@@ -85,8 +80,6 @@ let running = false;
 let paused = false;
 let gameOver = false;
 let upgrading = false;
-
-let killerMode = false;
 
 let score = 0;
 let kills = 0;
@@ -157,14 +150,6 @@ function textPopup(x, y, text) {
     text,
     life: 1
   });
-}
-
-function updateArenaMode() {
-  const arena = document.querySelector(".arena-shell");
-
-  if (arena) {
-    arena.classList.toggle("killer-mode", killerMode);
-  }
 }
 
 /* =========================================================
@@ -327,46 +312,32 @@ function spawnEnemy() {
     y = random(0, H);
   }
 
-  const roll = Math.random();
+ const roll = Math.random();
 
-  let type = "seeker";
+let type = "seeker";
 
-  if (sector >= 5) {
-    if (killerMode) {
-      // KILLER MODE: 100% hunters.
-      type = "hunter";
-    } else {
-      // NORMAL MODE: standard advanced enemy mix.
-      type = roll < 0.25 ? "drifter" : "hunter";
-    }
-  } else if (sector >= 3) {
-    // Sectors 3–4: 25% drifters, 75% hunters.
-    type = roll < 0.25 ? "drifter" : "hunter";
-  } else if (sector >= 2) {
-    // Sector 2: 35% seekers, 65% drifters.
-    type = roll < 0.35 ? "seeker" : "drifter";
-  }
+if (sector >= 5) {
+  // KILLER MODE: Hunters only.
+  type = "hunter";
+} else if (sector >= 3) {
+  // Sectors 3–4: 25% drifters, 75% hunters.
+  type = roll < 0.25 ? "drifter" : "hunter";
+} else if (sector >= 2) {
+  // Sector 2: 35% seekers, 65% drifters.
+  type = roll < 0.35 ? "seeker" : "drifter";
+}
 
   const data = enemyTypes[type];
-
-  const killerBoost = killerMode && sector >= 5 && type === "hunter";
-
-  const enemyHealth =
-    data.health + Math.floor(sector / 4) + (killerBoost ? 1 : 0);
 
   enemies.push({
     x,
     y,
 
     radius: data.radius,
+    speed: data.speed + sector * 3,
 
-    speed:
-      data.speed +
-      sector * 3 +
-      (killerBoost ? 25 : 0),
-
-    health: enemyHealth,
-    maxHealth: enemyHealth,
+    health: data.health + Math.floor(sector / 4),
+    maxHealth: data.health + Math.floor(sector / 4),
 
     damage: data.damage,
     type,
@@ -418,16 +389,15 @@ function destroyEnemy(index) {
 
   enemies.splice(index, 1);
 
+  // Chance for an enemy to drop a recovery pickup.
   spawnPickup(enemy.x, enemy.y);
 
   kills++;
   combo++;
   comboTimer = 3;
 
-  const modeMultiplier = killerMode ? 1.5 : 1;
-
   const reward = Math.floor(
-    100 * combo * player.scoreMultiplier * modeMultiplier
+    100 * combo * player.scoreMultiplier
   );
 
   score += reward;
@@ -484,7 +454,7 @@ function updateRecovery(dt) {
     );
   }
 
-  // Shield does not regenerate automatically.
+  // Shield no longer regenerates automatically.
 
   if (player.dash < player.maxDash) {
     player.dash = Math.min(
@@ -526,6 +496,7 @@ function updateShards(dt) {
     if (length < player.radius + shard.radius + 4) {
       score += 25;
 
+      // Each shard restores 5% of maximum hull.
       player.hull = Math.min(
         player.maxHull,
         player.hull + player.maxHull * 0.05
@@ -545,9 +516,8 @@ function updateShards(dt) {
 ========================================================= */
 
 function spawnPickup(x, y) {
-  const dropChance = killerMode ? 0.70 : 0.35;
-
-  if (Math.random() > dropChance) return;
+  // 35% chance of an enemy dropping recovery.
+  if (Math.random() > 0.35) return;
 
   const types = ["repair", "shield", "energy"];
 
@@ -658,6 +628,7 @@ function updatePlayer(dt) {
     player.y += player.vy * dt;
   }
 
+  // Rotate ship toward its movement direction.
   if (Math.hypot(player.vx, player.vy) > 5) {
     player.angle = Math.atan2(player.vy, player.vx) + Math.PI / 2;
   }
@@ -802,7 +773,6 @@ function openUpgradeMenu() {
   running = false;
   upgrading = true;
 
-  hide(ui.modeOverlay);
   show(ui.upgradeOverlay);
 
   ui.upgradeOptions.innerHTML = "";
@@ -845,48 +815,6 @@ function openUpgradeMenu() {
 }
 
 /* =========================================================
-   MODE SELECTION
-========================================================= */
-
-function openModeMenu() {
-  running = false;
-  upgrading = true;
-
-  hide(ui.upgradeOverlay);
-  show(ui.modeOverlay);
-
-  ui.arenaState.textContent = "AWAITING PROTOCOL";
-
-  log("SECTOR 04 CLEARED");
-  log("SELECT YOUR NEXT PROTOCOL");
-}
-
-function chooseMode(mode) {
-  killerMode = mode === "killer";
-
-  hide(ui.modeOverlay);
-
-  updateArenaMode();
-
-  if (killerMode) {
-    log("KILLER MODE ACTIVATED");
-    log("HUNTER THREAT LEVEL: ELEVATED");
-  } else {
-    log("NORMAL MODE ACTIVATED");
-    log("STANDARD PROTOCOL RESTORED");
-  }
-
-  ui.arenaState.textContent = killerMode
-    ? "KILLER PROTOCOL ACTIVE"
-    : "SYSTEM ACTIVE";
-
-  upgrading = false;
-
-  // The usual sector upgrade still happens before Sector 5.
-  openUpgradeMenu();
-}
-
-/* =========================================================
    SECTOR PROGRESSION
 ========================================================= */
 
@@ -901,11 +829,7 @@ function updateSector(dt) {
 
     log(`SECTOR ${sector} ENTERED`);
 
-    if (sector === 5) {
-      openModeMenu();
-    } else {
-      openUpgradeMenu();
-    }
+    openUpgradeMenu();
   }
 }
 
@@ -933,9 +857,6 @@ function resetGame() {
 
   screenShake = 0;
 
-  killerMode = false;
-  updateArenaMode();
-
   player = createPlayer();
 
   ui.eventLog.innerHTML = "";
@@ -956,7 +877,6 @@ function startGame() {
   hide(ui.menu);
   hide(ui.pauseOverlay);
   hide(ui.upgradeOverlay);
-  hide(ui.modeOverlay);
   hide(ui.gameOverOverlay);
 
   ui.arenaState.textContent = "SYSTEM ACTIVE";
@@ -981,9 +901,7 @@ function pauseGame() {
 
     hide(ui.pauseOverlay);
 
-    ui.arenaState.textContent = killerMode
-      ? "KILLER PROTOCOL ACTIVE"
-      : "SYSTEM ACTIVE";
+    ui.arenaState.textContent = "SYSTEM ACTIVE";
 
     lastTime = performance.now();
 
@@ -1125,18 +1043,10 @@ $("mobileDashBtn").addEventListener("pointerdown", event => {
 ========================================================= */
 
 function drawBackground() {
-  if (killerMode) {
-    ctx.fillStyle = "#100b1c";
-    ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#f0f0f0";
+  ctx.fillRect(0, 0, W, H);
 
-    ctx.strokeStyle = "rgba(168,85,247,0.13)";
-  } else {
-    ctx.fillStyle = "#f0f0f0";
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.strokeStyle = "rgba(0,0,0,0.055)";
-  }
-
+  ctx.strokeStyle = "rgba(0,0,0,0.055)";
   ctx.lineWidth = 1;
 
   const grid = 36;
@@ -1161,7 +1071,7 @@ function drawPlayer() {
 
   for (const point of player.trail) {
     ctx.globalAlpha = point.life * 0.35;
-    ctx.fillStyle = killerMode ? "#c084fc" : "#555";
+    ctx.fillStyle = "#555";
 
     ctx.beginPath();
     ctx.arc(
@@ -1189,11 +1099,11 @@ function drawPlayer() {
   ctx.translate(player.x, player.y);
   ctx.rotate(player.angle);
 
-  ctx.fillStyle = killerMode ? "#c084fc" : "#777";
-  ctx.strokeStyle = killerMode ? "#f3e8ff" : "#f5f5f5";
+  ctx.fillStyle = "#777";
+  ctx.strokeStyle = "#f5f5f5";
   ctx.lineWidth = 2;
 
-  ctx.shadowColor = killerMode ? "#a855f7" : "#ffffff";
+  ctx.shadowColor = "#ffffff";
   ctx.shadowBlur = 18;
 
   ctx.beginPath();
@@ -1249,7 +1159,7 @@ function drawEnemies() {
     if (enemy.health < enemy.maxHealth) {
       const width = enemy.radius * 2;
 
-      ctx.fillStyle = killerMode ? "#382447" : "#ccc";
+      ctx.fillStyle = "#ccc";
 
       ctx.fillRect(
         enemy.x - enemy.radius,
@@ -1377,7 +1287,7 @@ function drawFloatingTexts() {
   for (const item of floatingTexts) {
     ctx.globalAlpha = clamp(item.life, 0, 1);
 
-    ctx.fillStyle = killerMode ? "#d8b4fe" : "#333";
+    ctx.fillStyle = "#333";
     ctx.font = "bold 12px Arial";
     ctx.textAlign = "center";
 
@@ -1425,11 +1335,10 @@ function update(dt) {
   updateRecovery(dt);
   updateSector(dt);
 
-  if (!running || upgrading) return;
-
   spawnTimer += dt;
   shardTimer += dt;
 
+  // Enemy spawn frequency.
   const spawnInterval = Math.max(
     0.22,
     0.85 - sector * 0.045
@@ -1498,14 +1407,6 @@ ui.retry.addEventListener("click", startGame);
 ui.pause.addEventListener("click", pauseGame);
 ui.resume.addEventListener("click", pauseGame);
 
-ui.normalMode.addEventListener("click", () => {
-  chooseMode("normal");
-});
-
-ui.killerMode.addEventListener("click", () => {
-  chooseMode("killer");
-});
-
 /* =========================================================
    INITIALIZATION
 ========================================================= */
@@ -1519,16 +1420,12 @@ function initialize() {
   paused = false;
   gameOver = false;
   upgrading = false;
-  killerMode = false;
 
   ui.best.textContent = formatScore(best);
   ui.arenaState.textContent = "AWAITING PILOT";
 
-  updateArenaMode();
-
   hide(ui.pauseOverlay);
   hide(ui.upgradeOverlay);
-  hide(ui.modeOverlay);
   hide(ui.gameOverOverlay);
 
   show(ui.menu);
