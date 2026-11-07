@@ -93,7 +93,6 @@ let elapsed = 0;
 let sectorProgress = 0;
 let spawnTimer = 0;
 let shardTimer = 0;
-let pickupTimer = 0;
 
 let lastTime = 0;
 let screenShake = 0;
@@ -317,11 +316,13 @@ function spawnEnemy() {
 
   let type = "seeker";
 
-  if (sector >= 2 && roll > 0.68) {
+  // Reduced seeker frequency.
+  // Hunters become more common from sector 3.
+  if (sector >= 2 && roll > 0.50) {
     type = "drifter";
   }
 
-  if (sector >= 3 && roll > 0.84) {
+  if (sector >= 3 && roll > 0.70) {
     type = "hunter";
   }
 
@@ -386,6 +387,9 @@ function destroyEnemy(index) {
   burst(enemy.x, enemy.y, 12, enemy.color);
 
   enemies.splice(index, 1);
+
+  // Chance for an enemy to drop a recovery pickup.
+  spawnPickup(enemy.x, enemy.y);
 
   kills++;
   combo++;
@@ -497,7 +501,7 @@ function updateShards(dt) {
         player.hull + player.maxHull * 0.05
       );
 
-      burst(shard.x, shard.y, 5, "#888");
+      burst(shard.x, shard.y, 7, "#38bdf8");
 
       textPopup(shard.x, shard.y, "+25");
 
@@ -510,12 +514,15 @@ function updateShards(dt) {
    RECOVERY PICKUPS
 ========================================================= */
 
-function spawnPickup() {
+function spawnPickup(x, y) {
+  // 35% chance of an enemy dropping recovery.
+  if (Math.random() > 0.35) return;
+
   const types = ["repair", "shield", "energy"];
 
   pickups.push({
-    x: random(35, W - 35),
-    y: random(35, H - 35),
+    x,
+    y,
 
     type: types[Math.floor(Math.random() * types.length)],
 
@@ -551,7 +558,7 @@ function collectPickup(index) {
     log("PHASE ENERGY RESTORED");
   }
 
-  burst(pickup.x, pickup.y, 12, "#888");
+  burst(pickup.x, pickup.y, 14, "#22c55e");
 
   textPopup(pickup.x, pickup.y, "RECOVERED");
 
@@ -713,10 +720,10 @@ const upgrades = [
     }
   },
   {
-    name: "AFTERBURNER",
-    description: "Increase movement speed by 15%.",
+    name: "SPEED BOOST",
+    description: "Increase movement speed by 20%.",
     apply() {
-      player.speed *= 1.15;
+      player.speed *= 1.20;
     }
   },
   {
@@ -840,7 +847,6 @@ function resetGame() {
   sectorProgress = 0;
   spawnTimer = 0;
   shardTimer = 0;
-  pickupTimer = 0;
 
   enemies = [];
   shards = [];
@@ -1011,7 +1017,7 @@ document.querySelectorAll("[data-direction]").forEach(button => {
     button.setPointerCapture?.(event.pointerId);
   }
 
-  function release(event) {
+  function release() {
     if (!active) return;
 
     active = false;
@@ -1096,7 +1102,6 @@ function drawPlayer() {
   ctx.strokeStyle = "#f5f5f5";
   ctx.lineWidth = 2;
 
-  // White/grey player glow.
   ctx.shadowColor = "#ffffff";
   ctx.shadowBlur = 18;
 
@@ -1117,7 +1122,6 @@ function drawPlayer() {
 
 function drawEnemies() {
   for (const enemy of enemies) {
-
     const angle = Math.atan2(
       player.y - enemy.y,
       player.x - enemy.x
@@ -1128,7 +1132,6 @@ function drawEnemies() {
     ctx.translate(enemy.x, enemy.y);
     ctx.rotate(angle + Math.PI / 2);
 
-    // Coloured enemy glow.
     ctx.shadowColor = enemy.color;
     ctx.shadowBlur = 18;
 
@@ -1136,7 +1139,6 @@ function drawEnemies() {
     ctx.strokeStyle = enemy.color;
     ctx.lineWidth = 1.5;
 
-    // Directional arrow-shaped enemy.
     ctx.beginPath();
 
     ctx.moveTo(0, -enemy.radius - 5);
@@ -1145,17 +1147,14 @@ function drawEnemies() {
     ctx.lineTo(-enemy.radius * 0.85, enemy.radius);
 
     ctx.closePath();
-
     ctx.fill();
 
-    // Bright outline.
     ctx.shadowBlur = 5;
     ctx.strokeStyle = "#ffffff";
     ctx.stroke();
 
     ctx.restore();
 
-    // Enemy health bar.
     if (enemy.health < enemy.maxHealth) {
       const width = enemy.radius * 2;
 
@@ -1180,13 +1179,22 @@ function drawEnemies() {
   }
 }
 
+/* =========================================================
+   BLUE ENERGY SHARDS
+========================================================= */
+
 function drawShards() {
   for (const shard of shards) {
     shard.phase += 0.04;
 
     const pulse = Math.sin(shard.phase) * 2;
 
-    ctx.fillStyle = "#777";
+    ctx.save();
+
+    ctx.shadowColor = "#38bdf8";
+    ctx.shadowBlur = 22;
+
+    ctx.fillStyle = "#7dd3fc";
 
     ctx.beginPath();
     ctx.arc(
@@ -1198,8 +1206,19 @@ function drawShards() {
     );
 
     ctx.fill();
+
+    ctx.shadowBlur = 5;
+    ctx.strokeStyle = "#e0f2fe";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
   }
 }
+
+/* =========================================================
+   GREEN RECOVERY DROPS
+========================================================= */
 
 function drawPickups() {
   for (const pickup of pickups) {
@@ -1209,15 +1228,22 @@ function drawPickups() {
       energy: "D"
     };
 
-    ctx.fillStyle = "#fff";
-    ctx.strokeStyle = "#333";
+    const pulse = Math.sin(elapsed * 5 + pickup.x) * 2;
+
+    ctx.save();
+
+    ctx.shadowColor = "#22c55e";
+    ctx.shadowBlur = 22;
+
+    ctx.fillStyle = "#86efac";
+    ctx.strokeStyle = "#16a34a";
     ctx.lineWidth = 2;
 
     ctx.beginPath();
     ctx.arc(
       pickup.x,
       pickup.y,
-      pickup.radius,
+      pickup.radius + pulse,
       0,
       Math.PI * 2
     );
@@ -1225,7 +1251,9 @@ function drawPickups() {
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = "#222";
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#14532d";
     ctx.font = "bold 12px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -1235,6 +1263,8 @@ function drawPickups() {
       pickup.x,
       pickup.y
     );
+
+    ctx.restore();
   }
 }
 
@@ -1306,9 +1336,8 @@ function update(dt) {
 
   spawnTimer += dt;
   shardTimer += dt;
-  pickupTimer += dt;
 
-  // Increased enemy spawn frequency.
+  // Enemy spawn frequency.
   const spawnInterval = Math.max(
     0.22,
     0.85 - sector * 0.045
@@ -1322,14 +1351,6 @@ function update(dt) {
   if (shardTimer >= 2.1) {
     shardTimer = 0;
     spawnShard();
-  }
-
-  if (pickupTimer >= 16) {
-    pickupTimer = 0;
-
-    if (Math.random() < 0.75) {
-      spawnPickup();
-    }
   }
 
   if (comboTimer > 0) {
