@@ -164,11 +164,11 @@ function createPlayer() {
 
     radius: 12,
 
-   vx: 0,
-   vy: 0,
-   angle: 0,
+    vx: 0,
+    vy: 0,
+    angle: 0,
 
-   speed: 250,
+    speed: 250,
 
     hull: 100,
     maxHull: 100,
@@ -273,7 +273,7 @@ const enemyTypes = {
     speed: 105,
     health: 1,
     damage: 10,
-    color: "#eab308" // YELLOW
+    color: "#facc15"
   },
 
   drifter: {
@@ -281,7 +281,7 @@ const enemyTypes = {
     speed: 65,
     health: 3,
     damage: 15,
-    color: "#ef4444" // RED
+    color: "#ef4444"
   },
 
   hunter: {
@@ -289,7 +289,7 @@ const enemyTypes = {
     speed: 155,
     health: 2,
     damage: 12,
-    color: "#f97316" // ORANGE
+    color: "#a855f7"
   }
 };
 
@@ -449,12 +449,7 @@ function updateRecovery(dt) {
     );
   }
 
-  if (player.shield < player.maxShield) {
-    player.shield = Math.min(
-      player.maxShield,
-      player.shield + player.shieldRegen * dt
-    );
-  }
+  // Shield no longer regenerates automatically.
 
   if (player.dash < player.maxDash) {
     player.dash = Math.min(
@@ -496,14 +491,10 @@ function updateShards(dt) {
     if (length < player.radius + shard.radius + 4) {
       score += 25;
 
-      player.shield = Math.min(
-        player.maxShield,
-        player.shield + 5
-      );
-
-      player.dash = Math.min(
-        player.maxDash,
-        player.dash + 8
+      // Each shard restores 5% of maximum hull.
+      player.hull = Math.min(
+        player.maxHull,
+        player.hull + player.maxHull * 0.05
       );
 
       burst(shard.x, shard.y, 5, "#888");
@@ -628,10 +619,12 @@ function updatePlayer(dt) {
     player.x += player.vx * dt;
     player.y += player.vy * dt;
   }
-  // Rotate ship toward its movement direction
+
+  // Rotate ship toward its movement direction.
   if (Math.hypot(player.vx, player.vy) > 5) {
     player.angle = Math.atan2(player.vy, player.vx) + Math.PI / 2;
   }
+
   player.x = clamp(player.x, player.radius, W - player.radius);
   player.y = clamp(player.y, player.radius, H - player.radius);
 
@@ -757,10 +750,13 @@ const upgrades = [
     }
   },
   {
-    name: "FORTIFIED SHIELD",
-    description: "Increase shield regeneration by 40%.",
+    name: "SHIELD RESTORATION",
+    description: "Restore 40 shield capacity.",
     apply() {
-      player.shieldRegen *= 1.4;
+      player.shield = Math.min(
+        player.maxShield,
+        player.shield + 40
+      );
     }
   }
 ];
@@ -1095,9 +1091,14 @@ function drawPlayer() {
 
   ctx.translate(player.x, player.y);
   ctx.rotate(player.angle);
-  ctx.fillStyle = "#222";
-  ctx.strokeStyle = "#fff";
+
+  ctx.fillStyle = "#777";
+  ctx.strokeStyle = "#f5f5f5";
   ctx.lineWidth = 2;
+
+  // White/grey player glow.
+  ctx.shadowColor = "#ffffff";
+  ctx.shadowBlur = 18;
 
   ctx.beginPath();
   ctx.moveTo(0, -16);
@@ -1109,31 +1110,57 @@ function drawPlayer() {
   ctx.fill();
   ctx.stroke();
 
+  ctx.shadowBlur = 0;
+
   ctx.restore();
 }
 
 function drawEnemies() {
   for (const enemy of enemies) {
-    ctx.fillStyle = enemy.color;
-    ctx.strokeStyle = "#222";
-    ctx.lineWidth = 1.5;
 
-    ctx.beginPath();
-    ctx.arc(
-      enemy.x,
-      enemy.y,
-      enemy.radius,
-      0,
-      Math.PI * 2
+    const angle = Math.atan2(
+      player.y - enemy.y,
+      player.x - enemy.x
     );
 
+    ctx.save();
+
+    ctx.translate(enemy.x, enemy.y);
+    ctx.rotate(angle + Math.PI / 2);
+
+    // Coloured enemy glow.
+    ctx.shadowColor = enemy.color;
+    ctx.shadowBlur = 18;
+
+    ctx.fillStyle = enemy.color;
+    ctx.strokeStyle = enemy.color;
+    ctx.lineWidth = 1.5;
+
+    // Directional arrow-shaped enemy.
+    ctx.beginPath();
+
+    ctx.moveTo(0, -enemy.radius - 5);
+    ctx.lineTo(enemy.radius * 0.85, enemy.radius);
+    ctx.lineTo(0, enemy.radius * 0.55);
+    ctx.lineTo(-enemy.radius * 0.85, enemy.radius);
+
+    ctx.closePath();
+
     ctx.fill();
+
+    // Bright outline.
+    ctx.shadowBlur = 5;
+    ctx.strokeStyle = "#ffffff";
     ctx.stroke();
 
+    ctx.restore();
+
+    // Enemy health bar.
     if (enemy.health < enemy.maxHealth) {
       const width = enemy.radius * 2;
 
       ctx.fillStyle = "#ccc";
+
       ctx.fillRect(
         enemy.x - enemy.radius,
         enemy.y - enemy.radius - 7,
@@ -1141,7 +1168,8 @@ function drawEnemies() {
         3
       );
 
-      ctx.fillStyle = "#222";
+      ctx.fillStyle = enemy.color;
+
       ctx.fillRect(
         enemy.x - enemy.radius,
         enemy.y - enemy.radius - 7,
@@ -1280,9 +1308,10 @@ function update(dt) {
   shardTimer += dt;
   pickupTimer += dt;
 
+  // Increased enemy spawn frequency.
   const spawnInterval = Math.max(
-    0.38,
-    1.35 - sector * 0.055
+    0.22,
+    0.85 - sector * 0.045
   );
 
   if (spawnTimer >= spawnInterval) {
