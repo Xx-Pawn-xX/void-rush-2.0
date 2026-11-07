@@ -312,16 +312,19 @@ function spawnEnemy() {
     y = random(0, H);
   }
 
-  const roll = Math.random();
+ const roll = Math.random();
 
 let type = "seeker";
 
-if (sector >= 2 && roll > 0.35) {
-  type = "drifter";
-}
-
-if (sector >= 3 && roll > 0.55) {
+if (sector >= 5) {
+  // KILLER MODE: Hunters only.
   type = "hunter";
+} else if (sector >= 3) {
+  // Sectors 3–4: 25% drifters, 75% hunters.
+  type = roll < 0.25 ? "drifter" : "hunter";
+} else if (sector >= 2) {
+  // Sector 2: 35% seekers, 65% drifters.
+  type = roll < 0.35 ? "seeker" : "drifter";
 }
 
   const data = enemyTypes[type];
@@ -719,9 +722,9 @@ const upgrades = [
   },
   {
     name: "SPEED BOOST",
-    description: "Increase movement speed by 20%.",
+    description: "Increase movement speed by 35%.",
     apply() {
-      player.speed *= 1.20;
+      player.speed *= 1.35;
     }
   },
   {
