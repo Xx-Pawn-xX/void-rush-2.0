@@ -314,17 +314,15 @@ function spawnEnemy() {
 
   const roll = Math.random();
 
-  let type = "seeker";
+let type = "seeker";
 
-  // Reduced seeker frequency.
-  // Hunters become more common from sector 3.
-  if (sector >= 2 && roll > 0.50) {
-    type = "drifter";
-  }
+if (sector >= 2 && roll > 0.35) {
+  type = "drifter";
+}
 
-  if (sector >= 3 && roll > 0.70) {
-    type = "hunter";
-  }
+if (sector >= 3 && roll > 0.55) {
+  type = "hunter";
+}
 
   const data = enemyTypes[type];
 
